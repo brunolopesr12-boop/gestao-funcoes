@@ -11,6 +11,10 @@ Feito para o celular: poucos toques, cards grandes, cores de status e barras de
 progresso. Funciona igual no computador, tablet e celular, com os dados
 sincronizados em tempo real entre todos os aparelhos.
 
+> **Para colocar no ar agora:** siga o passo a passo de [`DEPLOY.md`](DEPLOY.md)
+> (GitHub → Vercel → banco criado pela própria Vercel). As instruções abaixo são
+> a versão resumida e a de rodar no computador.
+
 ---
 
 ## 1. Criar o banco no Supabase
@@ -48,15 +52,16 @@ Abra <http://localhost:3000>.
 
 ## 3. Publicar na Vercel
 
-1. Suba o projeto para um repositório no GitHub.
-2. Em [vercel.com](https://vercel.com) → **Add New → Project** → importe o repositório.
-   A Vercel detecta Next.js sozinha; não precisa mudar nada na build.
-3. Em **Environment Variables** adicione as mesmas duas variáveis do `.env.local`
-   (`NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY`) para
-   Production, Preview e Development.
-4. **Deploy**. O endereço gerado já funciona no celular.
-5. No celular, abra o endereço e use **Adicionar à tela de início** — o app abre em
-   tela cheia, como um aplicativo.
+Passo a passo completo, com telas e solução de problemas: **[`DEPLOY.md`](DEPLOY.md)**.
+
+Resumo: suba para o GitHub → importe na Vercel → **Storage → Create Database →
+Supabase** (a Vercel injeta as chaves sozinha) → rode o `schema.sql` no SQL Editor
+do Supabase → **Redeploy**. Depois, no celular, use *Adicionar à tela de início*
+para o app abrir em tela cheia.
+
+O app aceita tanto `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_ANON_KEY`
+quanto `SUPABASE_URL`/`SUPABASE_ANON_KEY`, então funciona com qualquer nome que a
+integração da Vercel usar.
 
 ---
 

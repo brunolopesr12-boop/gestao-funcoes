@@ -50,39 +50,37 @@ export function Gate({ children }: { children: React.ReactNode }) {
 }
 
 function SetupScreen() {
+  const passos = [
+    {
+      t: "Na Vercel: adicione o Supabase",
+      d: "No projeto da Vercel abra a aba Storage (ou Integrations) → Create Database → Supabase. A Vercel cria o banco e injeta as chaves no projeto sozinha.",
+    },
+    {
+      t: "Crie as tabelas",
+      d: "Abra o painel do Supabase pelo botão que aparece na Vercel → SQL Editor → New query. Cole todo o arquivo supabase/schema.sql do projeto e clique em Run.",
+    },
+    {
+      t: "Redeploy",
+      d: "Na Vercel, aba Deployments → ⋯ no último deploy → Redeploy, para o app subir já com as chaves.",
+    },
+    {
+      t: "Rodando no computador?",
+      d: "Crie um arquivo .env.local na raiz com NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY (Supabase → Project Settings → API) e rode npm run dev de novo.",
+    },
+  ];
+
   return (
     <div className="mx-auto w-full max-w-2xl px-5 py-10">
       <div className="mb-6 text-center">
         <div className="mb-2 text-5xl">🔌</div>
         <h1 className="text-2xl font-extrabold">Falta conectar o banco de dados</h1>
         <p className="mt-2 text-slate-400">
-          O aplicativo está pronto — só precisa das chaves do seu projeto Supabase.
+          O aplicativo está pronto — só precisa das chaves do Supabase.
         </p>
       </div>
 
       <ol className="space-y-3">
-        {[
-          {
-            t: "Crie um projeto no Supabase",
-            d: "Acesse supabase.com, crie uma conta gratuita e um novo projeto.",
-          },
-          {
-            t: "Rode o schema",
-            d: "No painel do Supabase abra SQL Editor → New query, cole todo o conteúdo do arquivo supabase/schema.sql do projeto e clique em Run.",
-          },
-          {
-            t: "Copie as chaves",
-            d: "Project Settings → API: copie a Project URL e a chave anon/public.",
-          },
-          {
-            t: "Preencha o .env.local",
-            d: "Crie o arquivo .env.local na raiz com NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY e reinicie o servidor (npm run dev).",
-          },
-          {
-            t: "Na Vercel",
-            d: "Adicione as mesmas duas variáveis em Settings → Environment Variables e faça o redeploy.",
-          },
-        ].map((s, i) => (
+        {passos.map((s, i) => (
           <li key={s.t} className="card flex gap-4 p-4">
             <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-blue-600 text-sm font-bold">
               {i + 1}
@@ -96,10 +94,14 @@ function SetupScreen() {
       </ol>
 
       <pre className="mt-6 overflow-x-auto rounded-2xl border border-[var(--line)] bg-black/40 p-4 text-xs text-slate-300">
-{`# .env.local
+{`# .env.local (só para rodar no computador)
 NEXT_PUBLIC_SUPABASE_URL=https://SEU-PROJETO.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOi...`}
       </pre>
+
+      <p className="mt-4 text-center text-xs text-slate-500">
+        O passo a passo completo está no arquivo DEPLOY.md do projeto.
+      </p>
     </div>
   );
 }
