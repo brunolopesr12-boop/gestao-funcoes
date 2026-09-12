@@ -1,0 +1,136 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji";
+}
+
+:root {
+  color-scheme: dark;
+  --bg: #0b1020;
+  --panel: #121a30;
+  --panel-2: #172344;
+  --line: #24314f;
+  --txt: #e8edf9;
+  --muted: #94a3c4;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--txt);
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+body {
+  background-image:
+    radial-gradient(1100px 520px at 12% -8%, rgba(59, 130, 246, 0.16), transparent 60%),
+    radial-gradient(900px 460px at 92% 0%, rgba(244, 63, 94, 0.12), transparent 55%);
+  background-attachment: fixed;
+  min-height: 100dvh;
+}
+
+* {
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+a {
+  touch-action: manipulation;
+}
+
+input,
+select,
+textarea {
+  font-size: 16px; /* evita zoom automático no iOS */
+}
+
+/* ---- utilitários do app ---------------------------------------- */
+
+.card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015));
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+}
+
+.card-hover {
+  transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+.card-hover:active {
+  transform: scale(0.985);
+}
+@media (hover: hover) {
+  .card-hover:hover {
+    border-color: #3b5285;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02));
+  }
+}
+
+.field {
+  width: 100%;
+  background: #0e1730;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  padding: 0.7rem 0.85rem;
+  color: var(--txt);
+  outline: none;
+}
+.field:focus {
+  border-color: #4f7ae0;
+  box-shadow: 0 0 0 3px rgba(79, 122, 224, 0.18);
+}
+.field::placeholder {
+  color: #64748b;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #2b3a5e;
+  border-radius: 999px;
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.pop-in {
+  animation: pop-in 0.18s ease-out both;
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+.sheet-up {
+  animation: sheet-up 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.fade-in {
+  animation: fade-in 0.15s ease-out both;
+}
+
+.safe-bottom {
+  padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+}
