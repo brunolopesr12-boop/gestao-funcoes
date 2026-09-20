@@ -29,11 +29,16 @@ export function Gate({ children }: { children: React.ReactNode }) {
         <div className="card p-6">
           <div className="mb-3 text-4xl">⚠️</div>
           <h1 className="mb-2 text-xl font-bold">Não consegui carregar os dados</h1>
+          <p className="mb-3 text-sm text-slate-400">
+            A causa mais comum é o <strong className="text-slate-200">banco pausado</strong>:
+            no plano gratuito o Supabase pausa o projeto depois de ~7 dias sem uso.
+            Abra o painel do Supabase e clique em <strong className="text-slate-200">Resume
+            project</strong> — nenhum dado é perdido, e em alguns minutos volta ao normal.
+          </p>
           <p className="mb-4 text-sm text-slate-400">
-            Verifique se o schema foi aplicado no Supabase (arquivo{" "}
+            Se não for isso, confira se o schema foi aplicado (arquivo{" "}
             <code className="rounded bg-white/10 px-1">supabase/schema.sql</code>) e se
-            as chaves em <code className="rounded bg-white/10 px-1">.env.local</code>{" "}
-            estão corretas.
+            as chaves de ambiente estão corretas.
           </p>
           <pre className="mb-4 overflow-x-auto rounded-xl bg-black/40 p-3 text-xs text-rose-300">
             {error}

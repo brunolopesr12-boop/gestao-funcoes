@@ -10,3 +10,5 @@ next-env.d.ts
 .DS_Store
 .tmp-test
 !.env.example
+.claude/
+.agents/
