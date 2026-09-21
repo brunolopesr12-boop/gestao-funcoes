@@ -24,6 +24,9 @@ export async function POST(req: Request) {
     .from("gpt_questions")
     .update({ helpful: body.helpful })
     .eq("id", body.id);
-  if (error) return NextResponse.json({ erro: error.message }, { status: 502 });
+  if (error) {
+    console.error("[vila-gpt] feedback:", error.message);
+    return NextResponse.json({ erro: "Não foi possível registrar o feedback." }, { status: 502 });
+  }
   return NextResponse.json({ ok: true });
 }

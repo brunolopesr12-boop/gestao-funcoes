@@ -11,7 +11,7 @@ import { useData } from "@/lib/store";
 import { sortedCompanies, companyEmployees } from "@/lib/selectors";
 import { normalize } from "@/lib/vila-gpt/text";
 import { buildKnowledge, groupByCategory, type KnowledgeDoc } from "@/lib/vila-gpt/knowledge";
-import { quickSearch } from "@/lib/vila-gpt/retrieval";
+import { buildIndex, search } from "@/lib/vila-gpt/retrieval";
 import {
   askVilaGpt,
   fetchSuggestions,
@@ -60,7 +60,7 @@ export default function VilaGptPage() {
 }
 
 function VilaGpt() {
-  const { data, trainer, setTrainer } = useData();
+  const { data, trainer, setTrainer, notify } = useData();
   const router = useRouter();
   const params = useSearchParams();
 
@@ -99,6 +99,19 @@ function VilaGpt() {
   useEffect(() => {
     setEmployeeId(readLocal(STORAGE.employee));
   }, []);
+
+  /* o funcionário escolhido acompanha o nome e a empresa atuais */
+  const employees = useMemo(
+    () => (companyId ? companyEmployees(data, companyId) : []),
+    [data, companyId],
+  );
+  useEffect(() => {
+    if (!trainer) return;
+    const match = employees.find((e) => normalize(e.name) === normalize(trainer));
+    const id = match?.id ?? "";
+    setEmployeeId(id);
+    writeLocal(STORAGE.employee, id);
+  }, [trainer, employees]);
 
   /* ---- base de conhecimento (para o Manual e as fontes) ------------ */
   const docs = useMemo(
@@ -140,10 +153,6 @@ function VilaGpt() {
   }, [docs, suggestions]);
 
   const company = companies.find((c) => c.id === companyId);
-  const employees = useMemo(
-    () => (companyId ? companyEmployees(data, companyId) : []),
-    [data, companyId],
-  );
 
   /* ---- enviar ------------------------------------------------------ */
   const scrollDown = useCallback(() => {
@@ -216,18 +225,14 @@ function VilaGpt() {
   const openSource = (s: GptSource) => {
     const doc = docs.find((d) => d.id === s.id);
     if (doc) setOpenDoc(doc);
+    else if (s.href.startsWith("/vila-gpt")) notify("Essa informação não está mais na base oficial.", "erro");
     else router.push(s.href);
   };
 
   /* ---- quem é você ------------------------------------------------- */
   const identify = (name: string) => {
     const clean = name.trim();
-    if (!clean) return;
-    setTrainer(clean);
-    const match = employees.find((e) => normalize(e.name) === normalize(clean));
-    const id = match?.id ?? "";
-    setEmployeeId(id);
-    writeLocal(STORAGE.employee, id);
+    if (clean) setTrainer(clean);
   };
 
   const subtitle = company
@@ -239,6 +244,10 @@ function VilaGpt() {
       title="VILA GPT"
       subtitle={subtitle}
       backHref="/"
+      identity={{
+        title: "Quem é você?",
+        help: "Seu nome fica registrado junto com as perguntas que você faz ao VILA GPT (e nas etapas de treinamento que marcar).",
+      }}
       action={
         <Link
           href="/vila-gpt/admin"
@@ -506,9 +515,10 @@ function Manual({
   // "quem sabe fazer / quem exerce" são derivados e mudam sempre: ficam
   // fora da lista do manual, mas o chat continua usando-os.
   const browsable = useMemo(() => docs.filter((d) => d.kind !== "responsaveis"), [docs]);
+  const index = useMemo(() => buildIndex(browsable), [browsable]);
   const results = useMemo(
-    () => (query.trim() ? quickSearch(browsable, query, { limit: 30 }).map((h) => h.doc) : null),
-    [browsable, query],
+    () => (query.trim() ? search(index, query, { limit: 30 }).map((h) => h.doc) : null),
+    [index, query],
   );
   const groups = useMemo(() => groupByCategory(browsable), [browsable]);
 

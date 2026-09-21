@@ -36,7 +36,10 @@ const STOPWORDS = new Set(
    dessa desse deste desta nesse nessa neste nesta num numa pelo pela pelos pelas
    como faco fazer faz fazem fazendo feito feita devo deve devem deveria dever
    posso pode podem poderia preciso precisa precisam precisar
-   quando onde qual quais o que porque por que
+   quando onde qual quais quem o que porque por que
+   procedimento procedimentos processo processos regra regras norma normas
+   instrucao instrucoes orientacao orientacoes politica politicas
+   passo passos etapa etapas
    quero queria gostaria saber sei da dar ficar fica fico vou vai vamos ir
    algum alguma alguns algumas cada todo toda todos todas outro outra mesmo mesma
    determinado determinada certo certa correto correta jeito forma maneira
@@ -93,7 +96,7 @@ const SYNONYM_GROUPS: string[][] = [
   ["abrir", "abertura", "abre", "abrindo", "abriu"],
   ["fechar", "fechamento", "fecha", "fechando", "encerrar", "encerramento"],
   ["pedido", "comanda", "pedidos", "comandas"],
-  ["ifood", "delivery", "entrega", "entregar", "entregas", "motoboy", "entregador", "aplicativo", "app"],
+  ["ifood", "delivery", "entrega", "entregar", "entregas", "motoboy", "entregador"],
   ["devolucao", "devolver", "devolve", "troca", "trocar", "reembolso", "estorno", "estornar"],
   ["cancelar", "cancelamento", "cancela", "cancelado"],
   ["limpar", "limpeza", "higienizar", "higienizacao", "lavar", "lavagem", "sanitizar"],
@@ -118,7 +121,6 @@ const SYNONYM_GROUPS: string[][] = [
   ["strogonoff", "estrogonofe", "strogonofe", "estrogonoff", "stroganoff", "estroganofe"],
   ["equipamento", "equipamentos", "maquina", "maquinas", "fritadeira", "chapa", "forno", "freezer", "geladeira"],
   ["horario", "horarios", "turno", "turnos", "escala"],
-  ["quem", "pessoa"],
   ["caixa", "pdv"],
   ["pagamento", "pagar", "pago", "cobrar", "cobranca", "pix", "cartao", "dinheiro"],
   ["sistema", "programa", "tela"],

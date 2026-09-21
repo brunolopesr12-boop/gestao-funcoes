@@ -13,7 +13,7 @@ import {
   search,
 } from "../.tmp-test/vila-gpt/retrieval.js";
 import {
-  frequentQuestions,
+  frequentTopics,
   hotTopics,
   summarize,
   topicOf,
@@ -135,13 +135,15 @@ test("stem reduz plural e sufixos comuns", () => {
 test("tokenize remove palavras de pergunta e unifica sinônimos", () => {
   const t = tokenize("Como faço o fechamento do caixa?");
   assert.deepEqual(t, [stem("fechar"), stem("caixa")]);
+  // "procedimento" é palavra de navegação, não conteúdo
   assert.deepEqual(uniqueTokens("Qual é o procedimento para abrir a loja?"), [
-    stem("procedimento"),
     stem("abrir"),
     "loj",
   ]);
   // sinônimos: ifood ~ delivery ~ entrega
   assert.deepEqual(tokenize("problema no iFood"), tokenize("erro no delivery"));
+  // "quem" é palavra de pergunta, não conteúdo
+  assert.deepEqual(tokenize("Quem sabe fazer arroz?"), [stem("sabe"), "arroz"]);
   assert.deepEqual(tokenize("estrogonofe"), tokenize("strogonoff"));
 });
 
@@ -238,6 +240,27 @@ test("search não inventa: pergunta fora da base não é confiável", () => {
   assert.deepEqual(candidatesForAI([]), []);
 });
 
+test("candidatesForAI descarta documento preso por uma palavra solta", () => {
+  // "Como funciona o plano de saúde?" só encosta em algum documento pela
+  // palavra "funciona" — nada disso pode chegar à IA.
+  const d = base();
+  d.kb_articles.push(
+    article("a6", {
+      kind: "sistema",
+      title: "Como usar o VILA GPT",
+      question: "Como funciona o VILA GPT? Como faço uma pergunta?",
+      content: "1. Escreva sua dúvida.\n2. Toque em Enviar.",
+      keywords: "ajuda",
+    }),
+  );
+  const docs = buildKnowledge(d, { companyId: C1 });
+  const hits = quickSearch(docs, "Como funciona o plano de saúde?", { limit: 12 });
+  assert.deepEqual(candidatesForAI(hits), [], "nenhuma fonte deve ir para a IA");
+  // uma pergunta de verdade sobre o sistema continua chegando
+  const ok = candidatesForAI(quickSearch(docs, "Como funciona o VILA GPT?", { limit: 12 }));
+  assert.equal(ok[0].doc.id, "kb:a6");
+});
+
 test("search não se deixa enganar por um verbo solto no meio do texto", () => {
   // "Cliente reclamando" manda "registrar a ocorrência"; a pergunta é sobre
   // registrar uma PERDA. Sem artigo de perdas, a resposta tem de ser "não achei".
@@ -259,6 +282,22 @@ test("search não se deixa enganar por um verbo solto no meio do texto", () => {
   const hits2 = quickSearch(buildKnowledge(d, { companyId: C1 }), "Como registro uma perda?");
   assert.equal(hits2[0].doc.id, "kb:a5");
   assert.ok(isConfident(hits2[0]));
+});
+
+test("search não responde por coincidência de uma palavra do título", () => {
+  // "cliente" está no título da regra de reclamação, mas a pergunta é sobre
+  // desconto — a regra não é sobre isso e não pode virar resposta.
+  const docs = buildKnowledge(base(), { companyId: C1 });
+  const index = buildIndex(docs);
+  const hits = search(index, "Posso dar desconto para o cliente?");
+  assert.ok(!isConfident(hits[0]), `não deveria confiar em ${hits[0]?.doc.id}`);
+  // já "cliente reclamou do pedido" cobre o título inteiro
+  assert.ok(isConfident(search(index, "cliente reclamou do pedido")[0]));
+});
+
+test("palavras de navegação não desviam a busca", () => {
+  const index = buildIndex(buildKnowledge(base(), { companyId: C1 }));
+  assert.equal(search(index, "Qual o procedimento de fechamento?")[0].doc.id, "kb:a1");
 });
 
 test("candidatesForAI prioriza documentos com termos discriminantes", () => {
@@ -326,7 +365,9 @@ test("topicStats agrupa, conta pessoas e respeita a janela", () => {
   const un = unansweredTopics(rows, { now: NOW });
   assert.deepEqual(un.map((u) => u.label), ["Plano de saúde?"]);
 
-  assert.deepEqual(frequentQuestions(rows, { now: NOW }), ["Como faço o fechamento do caixa?"]);
+  const freq = frequentTopics(rows, { now: NOW });
+  assert.deepEqual(freq.map((t) => t.source?.id), ["kb:a1"], "só assuntos com fonte e 2+ perguntas");
+  assert.deepEqual(frequentTopics([rows[0]], { now: NOW }), [], "uma pergunta só não vira sugestão");
 
   const s = summarize(rows, NOW);
   assert.equal(s.total, 5);
@@ -334,4 +375,56 @@ test("topicStats agrupa, conta pessoas e respeita a janela", () => {
   assert.equal(s.notFound, 1);
   assert.equal(s.last30, 4);
   assert.equal(s.people, 2);
+});
+
+/* ---------------------------------------------------------------- */
+/* Sessão de administrador                                           */
+/* ---------------------------------------------------------------- */
+
+import {
+  checkPin,
+  isPinConfigured,
+  readCookie,
+  signSession,
+  verifySession,
+} from "../.tmp-test/vila-gpt/server/auth.js";
+
+test("senha de administrador: mínimo de 6 caracteres e comparação exata", () => {
+  process.env.VILA_GPT_ADMIN_PIN = "1234";
+  assert.equal(isPinConfigured(), false);
+  assert.equal(checkPin("1234"), false, "senha curta demais nunca entra");
+  process.env.VILA_GPT_ADMIN_PIN = "segredo-forte";
+  assert.equal(isPinConfigured(), true);
+  assert.equal(checkPin("segredo-forte"), true);
+  assert.equal(checkPin(" segredo-forte "), true, "espaços nas pontas são ignorados");
+  assert.equal(checkPin("segredo-fort"), false);
+  assert.equal(checkPin(""), false);
+});
+
+test("cookie de sessão: assinado, expira e cai quando a senha muda", () => {
+  process.env.VILA_GPT_ADMIN_PIN = "segredo-forte";
+  delete process.env.VILA_GPT_SESSION_SECRET;
+  const t0 = Date.parse("2026-09-21T12:00:00Z");
+  const token = signSession(t0);
+  assert.equal(verifySession(token, t0 + 1000), true);
+  assert.equal(verifySession(token, t0 + 31 * 86_400_000), false, "expirou");
+  assert.equal(verifySession(token.slice(0, -1) + "0", t0), false, "assinatura alterada");
+  const [exp, tag, sig] = token.split(".");
+  assert.equal(verifySession(`${Number(exp) + 999999}.${tag}.${sig}`, t0), false, "prazo alterado");
+  process.env.VILA_GPT_ADMIN_PIN = "outra-senha-boa";
+  assert.equal(verifySession(token, t0), false, "trocar a senha invalida a sessão");
+  process.env.VILA_GPT_ADMIN_PIN = "segredo-forte";
+  process.env.VILA_GPT_SESSION_SECRET = "um-segredo-bem-longo-e-aleatorio";
+  assert.equal(verifySession(token, t0), false, "segredo próprio muda a assinatura");
+  assert.equal(verifySession(signSession(t0), t0), true);
+  assert.equal(verifySession(undefined, t0), false);
+  assert.equal(verifySession("lixo", t0), false);
+});
+
+test("readCookie não quebra com valor mal codificado", () => {
+  const req = new Request("http://x", { headers: { cookie: "a=1; vgpt_admin=%E0%A4%A; b=2" } });
+  assert.equal(readCookie(req, "vgpt_admin"), "%E0%A4%A");
+  assert.equal(readCookie(req, "b"), "2");
+  assert.equal(readCookie(req, "zzz"), undefined);
+  assert.equal(readCookie(new Request("http://x"), "a"), undefined);
 });

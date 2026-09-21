@@ -7,7 +7,7 @@ import { useData } from "@/lib/store";
 import { sortedCompanies } from "@/lib/selectors";
 import { fmtRelative } from "@/lib/format";
 import type { KnowledgeDoc } from "@/lib/vila-gpt/knowledge";
-import { quickSearch } from "@/lib/vila-gpt/retrieval";
+import { buildIndex, search } from "@/lib/vila-gpt/retrieval";
 import { KB_KINDS, KB_KIND_META, type KbArticle } from "@/lib/types";
 
 /**
@@ -34,15 +34,19 @@ export function KnowledgeBaseTab({
   const [status, setStatus] = useState<"" | "oficial" | "rascunho">("");
   const [system, setSystem] = useState(false);
 
+  const list = useMemo(() => {
+    let out = docs.filter((d) => (system ? true : d.kind === "kb"));
+    if (companyId) out = out.filter((d) => !d.companyId || d.companyId === companyId);
+    if (kind) out = out.filter((d) => (d.article ? d.article.kind === kind : kind === "sistema_dados"));
+    if (status === "oficial") out = out.filter((d) => !d.article || d.article.official);
+    if (status === "rascunho") out = out.filter((d) => d.article && !d.article.official);
+    return out;
+  }, [docs, system, companyId, kind, status]);
+  const index = useMemo(() => buildIndex(list), [list]);
   const filtered = useMemo(() => {
-    let list = docs.filter((d) => (system ? true : d.kind === "kb"));
-    if (companyId) list = list.filter((d) => !d.companyId || d.companyId === companyId);
-    if (kind) list = list.filter((d) => (d.article ? d.article.kind === kind : kind === "sistema_dados"));
-    if (status === "oficial") list = list.filter((d) => !d.article || d.article.official);
-    if (status === "rascunho") list = list.filter((d) => d.article && !d.article.official);
-    if (query.trim()) return quickSearch(list, query, { limit: 50 }).map((h) => h.doc);
+    if (query.trim()) return search(index, query, { limit: 50 }).map((h) => h.doc);
     return [...list].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-  }, [docs, system, companyId, kind, status, query]);
+  }, [list, index, query]);
 
   const articles = docs.filter((d) => d.article);
   const drafts = articles.filter((d) => d.article && !d.article.official).length;

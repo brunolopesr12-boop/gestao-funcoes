@@ -171,8 +171,10 @@ consultam; só quem tem a senha altera a base.
 
 | Variável | Obrigatória? | Para quê |
 |---|---|---|
-| `VILA_GPT_ADMIN_PIN` | Sim, para administrar | Senha da área de administração (mín. 4 caracteres). |
+| `VILA_GPT_ADMIN_PIN` | Sim, para administrar | Senha da área de administração (mín. 6 caracteres). Tentativas erradas são registradas e travam por 15 min. |
+| `VILA_GPT_SESSION_SECRET` | Recomendada | Texto longo e aleatório que assina o cookie de administrador (senão a assinatura deriva da senha). |
 | `ANTHROPIC_API_KEY` | Recomendada | Liga a IA. Sem ela: modo busca. |
+| `VILA_GPT_MAX_AI_PER_DAY` | Não | Teto diário de respostas com IA (padrão 500); acima disso cai para o modo busca. |
 | `VILA_GPT_MODEL` | Não | Modelo Claude (padrão `claude-opus-5`; `claude-sonnet-5` é mais barato). |
 | `VILA_GPT_EFFORT` | Não | `low`, `medium` (padrão) ou `high`. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Não | Permite travar a escrita da base no banco (`supabase/vila-gpt-lock.sql`). |
@@ -182,9 +184,10 @@ Na Vercel: **Settings → Environment Variables**, depois **Redeploy**. As tabel
 (pode rodar de novo; é idempotente).
 
 > Segurança: como o app não tem login, a senha protege a **interface** de
-> administração e as rotas do servidor. Para impedir também escritas diretas
-> no banco com a chave anon, defina `SUPABASE_SERVICE_ROLE_KEY` e rode
-> `supabase/vila-gpt-lock.sql`.
+> administração e as rotas do servidor. Para impedir também acessos diretos
+> ao banco com a chave anon (escrever na base e ler o histórico de perguntas),
+> defina `SUPABASE_SERVICE_ROLE_KEY` e rode `supabase/vila-gpt-lock.sql` —
+> rodar o `schema.sql` de novo não desfaz a trava.
 
 ## Sincronização entre aparelhos
 

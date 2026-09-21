@@ -121,7 +121,8 @@ Variables** do projeto na Vercel:
 
 | Variável | Valor |
 |---|---|
-| `VILA_GPT_ADMIN_PIN` | A senha que só a administração vai saber (mín. 4 caracteres). Sem ela ninguém altera a base oficial. |
+| `VILA_GPT_ADMIN_PIN` | A senha que só a administração vai saber (mín. 6 caracteres). Sem ela ninguém altera a base oficial. |
+| `VILA_GPT_SESSION_SECRET` | Recomendado: um texto longo e aleatório (ex.: 40 letras e números), para assinar o cookie de quem entrou na administração. |
 | `ANTHROPIC_API_KEY` | Chave da API da Anthropic (<https://console.anthropic.com>). Opcional: sem ela o VILA GPT mostra o procedimento oficial mais parecido em vez de redigir a resposta. |
 
 Depois faça o **Redeploy** de novo (passo 5). O `schema.sql` do passo 4 já cria as

@@ -150,6 +150,7 @@ const db = {
     },
   ],
   gpt_questions: [],
+  gpt_login_attempts: [],
 };
 
 /** filhos que somem junto quando o pai é excluído */
@@ -188,7 +189,7 @@ function cascadeDelete(table, row) {
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
+  "Access-Control-Allow-Methods": "GET,HEAD,POST,PATCH,DELETE,OPTIONS",
   "Access-Control-Allow-Headers":
     "authorization,apikey,content-type,prefer,x-client-info,accept-profile,content-profile,range",
   "Access-Control-Expose-Headers": "content-range",
@@ -218,6 +219,8 @@ function applyFilters(rows, params) {
     if (op === "eq") out = out.filter((r) => String(r[key]) === v);
     if (op === "neq") out = out.filter((r) => String(r[key]) !== v);
     if (op === "is" && v === "null") out = out.filter((r) => r[key] === null || r[key] === undefined);
+    if (op === "gte") out = out.filter((r) => String(r[key]) >= v);
+    if (op === "lte") out = out.filter((r) => String(r[key]) <= v);
     if (op === "in") {
       const list = v.replace(/^\(|\)$/g, "").split(",");
       out = out.filter((r) => list.includes(String(r[key])));
@@ -246,7 +249,7 @@ const server = createServer(async (req, res) => {
 
   const params = [...url.searchParams.entries()];
 
-  if (req.method === "GET") {
+  if (req.method === "GET" || req.method === "HEAD") {
     let rows = applyFilters(db[table], params);
     const order = url.searchParams.get("order");
     if (order) {
@@ -257,9 +260,16 @@ const server = createServer(async (req, res) => {
           : String(a[col]).localeCompare(String(b[col])),
       );
     }
+    const total = rows.length;
+    const offset = Number(url.searchParams.get("offset") ?? 0);
     const limit = url.searchParams.get("limit");
-    if (limit) rows = rows.slice(0, Number(limit));
-    return send(200, rows);
+    rows = rows.slice(offset, limit ? offset + Number(limit) : undefined);
+    // Prefer: count=exact  →  Content-Range: inicio-fim/total (como o PostgREST)
+    const wantsCount = (req.headers.prefer ?? "").includes("count=");
+    const range = rows.length ? `${offset}-${offset + rows.length - 1}` : "*";
+    const headers = { ...CORS, "Content-Type": "application/json", "Content-Range": `${range}/${wantsCount ? total : "*"}` };
+    res.writeHead(200, headers);
+    return res.end(req.method === "HEAD" ? undefined : JSON.stringify(rows));
   }
 
   if (req.method === "POST") {

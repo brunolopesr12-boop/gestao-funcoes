@@ -9,7 +9,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "node scripts/fix-test-imports.mjs && node --test tests/*.test.mjs",
-    "pretest": "tsc src/lib/derive.ts src/lib/types.ts src/lib/selectors.ts src/lib/vila-gpt/text.ts src/lib/vila-gpt/knowledge.ts src/lib/vila-gpt/retrieval.ts src/lib/vila-gpt/analytics.ts --outDir .tmp-test --module esnext --target es2022 --moduleResolution bundler --skipLibCheck --removeComments false"
+    "pretest": "tsc src/lib/derive.ts src/lib/types.ts src/lib/selectors.ts src/lib/vila-gpt/text.ts src/lib/vila-gpt/knowledge.ts src/lib/vila-gpt/retrieval.ts src/lib/vila-gpt/analytics.ts src/lib/vila-gpt/server/auth.ts --outDir .tmp-test --module esnext --target es2022 --moduleResolution bundler --skipLibCheck --removeComments false"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.127.0",

@@ -133,7 +133,15 @@ function Admin() {
   };
 
   return (
-    <AppShell title="VILA GPT · Administração" subtitle="Base oficial, histórico e painel" backHref="/vila-gpt">
+    <AppShell
+      title="VILA GPT · Administração"
+      subtitle="Base oficial, histórico e painel"
+      backHref="/vila-gpt"
+      identity={{
+        title: "Quem é você?",
+        help: "Seu nome fica registrado nas alterações que você fizer na base oficial.",
+      }}
+    >
       {!session && !sessionError ? (
         <p className="pt-6 text-center text-sm text-slate-500">Verificando acesso…</p>
       ) : sessionError ? (
@@ -219,7 +227,7 @@ function SetupCard() {
   const passos = [
     {
       t: "Escolha uma senha de administrador",
-      d: "Na Vercel: Settings → Environment Variables → adicione VILA_GPT_ADMIN_PIN com a senha (mínimo 4 caracteres). Rodando no computador: coloque VILA_GPT_ADMIN_PIN=... no .env.local.",
+      d: "Na Vercel: Settings → Environment Variables → adicione VILA_GPT_ADMIN_PIN com a senha (mínimo 6 caracteres; evite algo óbvio). Rodando no computador: coloque VILA_GPT_ADMIN_PIN=... no .env.local.",
     },
     {
       t: "Ligue a IA (opcional, mas recomendado)",

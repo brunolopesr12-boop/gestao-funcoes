@@ -319,29 +319,58 @@ create table if not exists public.gpt_questions (
 );
 create index if not exists gpt_questions_company_idx on public.gpt_questions(company_id, created_at desc);
 create index if not exists gpt_questions_topic_idx on public.gpt_questions(topic);
+create index if not exists gpt_questions_mode_idx on public.gpt_questions(mode, created_at desc);
+
+-- Tentativas de login na administracao (trava contra forca bruta,
+-- compartilhada entre todas as instancias do servidor)
+create table if not exists public.gpt_login_attempts (
+  id          uuid primary key default gen_random_uuid(),
+  ip          text not null default '',
+  ok          boolean not null default false,
+  created_at  timestamptz not null default now()
+);
+create index if not exists gpt_login_attempts_idx on public.gpt_login_attempts(created_at desc);
 
 drop trigger if exists trg_kb_articles_updated_at on public.kb_articles;
 create trigger trg_kb_articles_updated_at before update on public.kb_articles
   for each row execute function public.set_updated_at();
 
--- RLS: mesma politica das outras tabelas (o app usa a chave anon).
--- Para travar a escrita da base no banco, veja supabase/vila-gpt-lock.sql.
+-- RLS: por padrao a mesma politica das outras tabelas (o app usa a chave
+-- anon). Se a trava de supabase/vila-gpt-lock.sql ja tiver sido aplicada
+-- (politica "escrita_servidor" presente), este bloco NAO reabre o acesso.
 do $blk$
 declare t text;
 begin
-  foreach t in array array['kb_articles','gpt_questions'] loop
+  foreach t in array array['kb_articles','gpt_questions','gpt_login_attempts'] loop
     execute format('alter table public.%I enable row level security', t);
-    execute format('drop policy if exists "acesso_total_app" on public.%I', t);
-    execute format(
-      'create policy "acesso_total_app" on public.%I
-         for all to anon, authenticated using (true) with check (true)', t);
     if not exists (
-      select 1 from pg_publication_tables
-      where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t
+      select 1 from pg_policies
+      where schemaname = 'public' and tablename = t and policyname = 'escrita_servidor'
     ) then
-      execute format('alter publication supabase_realtime add table public.%I', t);
+      execute format('drop policy if exists "acesso_total_app" on public.%I', t);
+      execute format(
+        'create policy "acesso_total_app" on public.%I
+           for all to anon, authenticated using (true) with check (true)', t);
     end if;
   end loop;
+end $blk$;
+
+-- Realtime: so a base de conhecimento (o historico de perguntas e as
+-- tentativas de login nao devem ser transmitidos aos navegadores).
+do $blk$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'kb_articles'
+  ) then
+    alter publication supabase_realtime add table public.kb_articles;
+  end if;
+  if exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'gpt_questions'
+  ) then
+    alter publication supabase_realtime drop table public.gpt_questions;
+  end if;
 end $blk$;
 
 -- Conteudo inicial: apenas informacoes do proprio sistema (nada operacional

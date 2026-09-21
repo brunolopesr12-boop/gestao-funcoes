@@ -5,17 +5,27 @@ import { useState } from "react";
 import { useData } from "@/lib/store";
 import { Button, Field, Sheet, TextInput } from "./ui";
 
+export type IdentityCopy = { title: string; help: string };
+
+const DEFAULT_IDENTITY: IdentityCopy = {
+  title: "Quem está treinando?",
+  help: "Esse nome fica gravado em cada etapa de treinamento que você marcar, junto com a data e a hora. Assim você sabe depois quem treinou e certificou cada pessoa.",
+};
+
 export function AppShell({
   title,
   subtitle,
   backHref,
   action,
+  identity = DEFAULT_IDENTITY,
   children,
 }: {
   title: string;
   subtitle?: React.ReactNode;
   backHref?: string;
   action?: React.ReactNode;
+  /** texto da folha "quem é você" (o VILA GPT usa um texto próprio) */
+  identity?: IdentityCopy;
   children: React.ReactNode;
 }) {
   const { live, trainer } = useData();
@@ -61,23 +71,27 @@ export function AppShell({
 
       <main className="safe-bottom px-4 pt-4">{children}</main>
 
-      <TrainerSheet open={openTrainer} onClose={() => setOpenTrainer(false)} />
+      <TrainerSheet open={openTrainer} onClose={() => setOpenTrainer(false)} identity={identity} />
       <Toasts />
     </div>
   );
 }
 
-function TrainerSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+function TrainerSheet({
+  open,
+  onClose,
+  identity,
+}: {
+  open: boolean;
+  onClose: () => void;
+  identity: IdentityCopy;
+}) {
   const { trainer, setTrainer, live, refresh } = useData();
   const [name, setName] = useState(trainer);
 
   return (
-    <Sheet open={open} onClose={onClose} title="Quem está treinando?">
-      <p className="mb-4 text-sm text-slate-400">
-        Esse nome fica gravado em cada etapa de treinamento que você marcar, junto
-        com a data e a hora. Assim você sabe depois quem treinou e certificou cada
-        pessoa.
-      </p>
+    <Sheet open={open} onClose={onClose} title={identity.title}>
+      <p className="mb-4 text-sm text-slate-400">{identity.help}</p>
       <Field label="Seu nome">
         <TextInput
           value={name}

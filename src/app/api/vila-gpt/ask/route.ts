@@ -33,13 +33,6 @@ export async function POST(req: Request) {
   if (!isDbConfigured()) {
     return NextResponse.json({ erro: "Banco de dados não configurado." }, { status: 500 });
   }
-  if (rateLimited(`ask:${clientIp(req)}`, 30, 5 * 60_000)) {
-    return NextResponse.json(
-      { erro: "Muitas perguntas em pouco tempo. Aguarde um minuto e tente de novo." },
-      { status: 429 },
-    );
-  }
-
   let body: Body;
   try {
     body = (await req.json()) as Body;
@@ -54,6 +47,19 @@ export async function POST(req: Request) {
   const companyId = isUuid(body.company_id) ? body.company_id : null;
   const employeeId = isUuid(body.employee_id) ? body.employee_id : null;
   const employeeName = str(body.employee_name, 80);
+
+  // Limites: por pessoa (o Wi-Fi da loja é um IP só) e, mais folgado, por IP.
+  const ip = clientIp(req);
+  const person = (employeeId || employeeName.toLowerCase() || "anonimo").slice(0, 80);
+  if (
+    rateLimited(`ask:${ip}:${person}`, 30, 5 * 60_000) ||
+    rateLimited(`ask-ip:${ip}`, 150, 5 * 60_000)
+  ) {
+    return NextResponse.json(
+      { erro: "Muitas perguntas em pouco tempo. Aguarde um minuto e tente de novo." },
+      { status: 429 },
+    );
+  }
   const history: ChatTurn[] = Array.isArray(body.history)
     ? (body.history as unknown[])
         .filter(
@@ -71,8 +77,9 @@ export async function POST(req: Request) {
   try {
     snapshot = await loadSnapshot();
   } catch (e) {
+    console.error("[vila-gpt] não consegui ler a base:", e instanceof Error ? e.message : e);
     return NextResponse.json(
-      { erro: `Não consegui ler a base: ${e instanceof Error ? e.message : String(e)}` },
+      { erro: "Não consegui ler a base oficial agora. Tente de novo em instantes." },
       { status: 502 },
     );
   }

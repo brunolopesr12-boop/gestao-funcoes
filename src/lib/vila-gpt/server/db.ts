@@ -59,6 +59,44 @@ export function serverSupabase(): SupabaseClient {
 }
 
 /* ------------------------------------------------------------------ */
+/* Leitura paginada (o PostgREST devolve no máximo 1000 linhas por vez) */
+/* ------------------------------------------------------------------ */
+
+const PAGE = 1000;
+
+export type SelectAllOptions = {
+  /** filtros de igualdade */
+  eq?: [string, string | boolean][];
+  /** coluna para ordenar (desc = mais recentes primeiro) */
+  order?: { column: string; ascending?: boolean };
+  /** máximo de linhas (padrão: sem limite prático) */
+  max?: number;
+};
+
+/** Lê todas as linhas de uma tabela, página a página. */
+export async function selectAll<T = Record<string, unknown>>(
+  table: string,
+  opts: SelectAllOptions = {},
+): Promise<T[]> {
+  const sb = serverSupabase();
+  const max = opts.max ?? 100_000;
+  const out: T[] = [];
+  for (let from = 0; from < max; from += PAGE) {
+    const to = Math.min(from + PAGE, max) - 1;
+    let q = sb.from(table).select("*");
+    for (const [col, val] of opts.eq ?? []) q = q.eq(col, val);
+    if (opts.order) q = q.order(opts.order.column, { ascending: opts.order.ascending ?? false });
+    else q = q.order("id", { ascending: true });
+    const { data, error } = await q.range(from, to);
+    if (error) throw new Error(`${table}: ${error.message}`);
+    const rows = (data ?? []) as T[];
+    out.push(...rows);
+    if (rows.length < to - from + 1) break;
+  }
+  return out;
+}
+
+/* ------------------------------------------------------------------ */
 /* Snapshot do que o VILA GPT precisa saber                            */
 /* ------------------------------------------------------------------ */
 
@@ -78,13 +116,8 @@ const SNAPSHOT_TTL_MS = 15_000;
 let cached: { at: number; data: Promise<KnowledgeInput> } | null = null;
 
 async function fetchSnapshot(): Promise<KnowledgeInput> {
-  const sb = serverSupabase();
   const results = await Promise.all(
-    SNAPSHOT_TABLES.map(async (table) => {
-      const { data, error } = await sb.from(table).select("*");
-      if (error) throw new Error(`${table}: ${error.message}`);
-      return [table, data ?? []] as const;
-    }),
+    SNAPSHOT_TABLES.map(async (table) => [table, await selectAll(table)] as const),
   );
   const out = {} as Record<(typeof SNAPSHOT_TABLES)[number], unknown[]>;
   for (const [table, rows] of results) out[table] = rows;
@@ -108,6 +141,28 @@ export function invalidateSnapshot(): void {
 }
 
 /* ------------------------------------------------------------------ */
+/* Contagens (orçamento de IA, tentativas de login)                    */
+/* ------------------------------------------------------------------ */
+
+/** Quantas linhas existem desde `sinceIso`, com filtros. Null se não der para contar. */
+export async function countSince(
+  table: string,
+  sinceIso: string,
+  eq: [string, string | boolean][] = [],
+): Promise<number | null> {
+  try {
+    let q = serverSupabase().from(table).select("id", { count: "exact", head: true }).gte("created_at", sinceIso);
+    for (const [col, val] of eq) q = q.eq(col, val);
+    const { count, error } = await q;
+    if (error) throw new Error(error.message);
+    return count ?? 0;
+  } catch (e) {
+    console.error(`[vila-gpt] não consegui contar ${table}:`, e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Utilidades                                                          */
 /* ------------------------------------------------------------------ */
 
@@ -122,7 +177,7 @@ export function isUuid(v: unknown): v is string {
   );
 }
 
-/** Limitador simples por chave (IP), em memória — por instância. */
+/** Limitador simples por chave, em memória — por instância (primeira barreira). */
 const buckets = new Map<string, number[]>();
 export function rateLimited(key: string, max: number, windowMs: number): boolean {
   const now = Date.now();
@@ -133,7 +188,9 @@ export function rateLimited(key: string, max: number, windowMs: number): boolean
   }
   list.push(now);
   buckets.set(key, list);
-  if (buckets.size > 5000) buckets.clear();
+  if (buckets.size > 5000) {
+    for (const [k, v] of buckets) if (v.every((t) => now - t >= windowMs)) buckets.delete(k);
+  }
   return false;
 }
 

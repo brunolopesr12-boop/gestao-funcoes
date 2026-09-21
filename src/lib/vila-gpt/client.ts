@@ -68,9 +68,12 @@ export async function fetchSuggestions(companyId: string | null): Promise<string
 
 export type AdminSession = {
   configured: boolean;
+  min_pin_length: number;
   admin: boolean;
-  ai: { enabled: boolean; model: string; effort: string } | null;
+  ai: { enabled: boolean; model: string; effort: string; max_per_day: number } | null;
   service_role: boolean | null;
+  session_secret: boolean | null;
+  failed_logins_24h: number | null;
 };
 
 export function fetchAdminSession(): Promise<AdminSession> {

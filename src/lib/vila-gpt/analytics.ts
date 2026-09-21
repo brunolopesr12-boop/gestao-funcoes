@@ -145,10 +145,14 @@ export function unansweredTopics(rows: GptQuestion[], opts: TopicOptions = {}): 
   );
 }
 
-/** Perguntas mais frequentes (respondidas) para sugerir na tela do chat. */
-export function frequentQuestions(rows: GptQuestion[], opts: TopicOptions & { limit?: number } = {}): string[] {
+/**
+ * Assuntos oficiais mais perguntados (para sugerir na tela do chat).
+ * Só assuntos ligados a uma fonte, perguntados mais de uma vez — nunca o
+ * texto solto que um funcionário digitou.
+ */
+export function frequentTopics(rows: GptQuestion[], opts: TopicOptions & { limit?: number } = {}): TopicStat[] {
   const limit = opts.limit ?? 6;
   return topicStats(rows.filter((r) => r.found), { ...opts, days: opts.days ?? 60 })
-    .slice(0, limit)
-    .map((s) => s.samples[0] ?? s.label);
+    .filter((s) => s.topic.startsWith("src:") && s.source && s.count >= 2)
+    .slice(0, limit);
 }

@@ -39,13 +39,28 @@ export function StatusTab({
         Configuração
       </SectionTitle>
       <ul className="card mb-6 divide-y divide-[var(--line)]">
-        <Row ok={session.configured} label="Senha de administrador" detail="VILA_GPT_ADMIN_PIN definida. Só quem tem a senha altera a base." />
+        <Row
+          ok={session.configured}
+          label="Senha de administrador"
+          detail={`VILA_GPT_ADMIN_PIN definida. Só quem tem a senha altera a base.${
+            session.failed_logins_24h ? ` Tentativas erradas nas últimas 24h: ${session.failed_logins_24h}.` : ""
+          }`}
+        />
+        <Row
+          ok={session.session_secret ? true : null}
+          label={session.session_secret ? "Segredo de sessão configurado" : "Segredo de sessão não configurado (recomendado)"}
+          detail={
+            session.session_secret
+              ? "VILA_GPT_SESSION_SECRET assina o cookie de administrador."
+              : "Defina VILA_GPT_SESSION_SECRET (um texto aleatório longo) para que o cookie de administrador não dependa só da senha."
+          }
+        />
         <Row
           ok={Boolean(ai?.enabled)}
           label={ai?.enabled ? `IA ligada · ${ai.model}` : "IA desligada (modo busca)"}
           detail={
             ai?.enabled
-              ? `As respostas são redigidas pela IA só com base nas fontes oficiais (esforço: ${ai.effort}). Troque o modelo com VILA_GPT_MODEL.`
+              ? `As respostas são redigidas pela IA só com base nas fontes oficiais (esforço: ${ai.effort}; até ${ai.max_per_day} respostas com IA por dia, depois cai para o modo busca). Troque o modelo com VILA_GPT_MODEL e o limite com VILA_GPT_MAX_AI_PER_DAY.`
               : "Defina ANTHROPIC_API_KEY para a IA redigir as respostas. Sem ela, o VILA GPT mostra a fonte oficial mais parecida."
           }
         />
