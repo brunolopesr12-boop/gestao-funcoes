@@ -68,7 +68,29 @@ const db = {
   training_steps: [],
   training_events: [],
   activity_log: [],
+
+  /* ---- KDS (ver supabase/kds.sql) ---- */
+  kds_orders: [],
+  kds_ifood_events: [],
+  kds_settings: [
+    {
+      id: "default",
+      late_minutes: 25,
+      sound: true,
+      auto_confirm: false,
+      drink_keywords: [],
+      sauce_keywords: [],
+      last_poll_at: null,
+      last_poll_ok: false,
+      last_poll_error: "",
+      updated_at: T,
+    },
+  ],
+  kds_log: [],
 };
+
+/** Colunas com índice único (além de id). */
+const UNIQUE = { kds_orders: ["ifood_order_id"] };
 
 /** filhos que somem junto quando o pai é excluído */
 const CASCADE = {
@@ -132,7 +154,18 @@ function applyFilters(rows, params) {
     if (["select", "order", "limit", "offset"].includes(key)) continue;
     const [op, ...rest] = value.split(".");
     const v = rest.join(".");
+    if (key === "or") {
+      // or=(col.is.null,col.lt.valor)
+      const partes = value.replace(/^\(|\)$/g, "").split(",");
+      out = out.filter((r) => partes.some((p) => matchOne(r, p)));
+      continue;
+    }
     if (op === "eq") out = out.filter((r) => String(r[key]) === v);
+    if (op === "is") out = out.filter((r) => (v === "null" ? r[key] == null : String(r[key]) === v));
+    if (op === "gte") out = out.filter((r) => String(r[key] ?? "") >= v);
+    if (op === "lte") out = out.filter((r) => String(r[key] ?? "") <= v);
+    if (op === "lt") out = out.filter((r) => r[key] != null && String(r[key]) < v);
+    if (op === "gt") out = out.filter((r) => r[key] != null && String(r[key]) > v);
     if (op === "in") {
       const list = v.replace(/^\(|\)$/g, "").split(",");
       out = out.filter((r) => list.includes(String(r[key])));
@@ -141,11 +174,39 @@ function applyFilters(rows, params) {
   return out;
 }
 
+/** Avalia "coluna.op.valor" (usado pelo filtro or=). */
+function matchOne(row, expr) {
+  const [col, op, ...rest] = expr.split(".");
+  const v = rest.join(".");
+  const cur = row[col];
+  if (op === "is") return v === "null" ? cur == null : String(cur) === v;
+  if (op === "eq") return String(cur) === v;
+  if (op === "lt") return cur != null && String(cur) < v;
+  if (op === "gt") return cur != null && String(cur) > v;
+  if (op === "gte") return cur != null && String(cur) >= v;
+  if (op === "lte") return cur != null && String(cur) <= v;
+  return false;
+}
+
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
-  const send = (code, body) => {
-    res.writeHead(code, { ...CORS, "Content-Type": "application/json" });
+  const aceitaObjeto = (req.headers.accept ?? "").includes("vnd.pgrst.object");
+  const querCorpo = (req.headers.prefer ?? "").includes("return=representation");
+
+  const send = (code, body, headers = {}) => {
+    res.writeHead(code, { ...CORS, "Content-Type": "application/json", ...headers });
     res.end(body === undefined ? "" : JSON.stringify(body));
+  };
+
+  /** Responde respeitando o Accept de single()/maybeSingle(). */
+  const sendRows = (code, rows) => {
+    if (!aceitaObjeto) return send(code, rows);
+    if (rows.length === 1) return send(code, rows[0]);
+    return send(406, {
+      code: "PGRST116",
+      message: `JSON object requested, multiple (or no) rows returned`,
+      details: `Results contain ${rows.length} rows`,
+    });
   };
 
   if (req.method === "OPTIONS") {
@@ -174,30 +235,49 @@ const server = createServer(async (req, res) => {
     }
     const limit = url.searchParams.get("limit");
     if (limit) rows = rows.slice(0, Number(limit));
-    return send(200, rows);
+    return sendRows(200, rows);
   }
 
   if (req.method === "POST") {
     const body = await readBody(req);
     const incoming = Array.isArray(body) ? body : [body];
+    const gravadas = [];
     for (const row of incoming) {
-      if (db[table].some((r) => r.id === row.id)) {
+      const nova = { id: row.id ?? crypto.randomUUID(), ...row };
+      if (db[table].some((r) => String(r.id) === String(nova.id))) {
         return send(409, {
           message: `duplicate key value violates unique constraint on ${table}`,
           code: "23505",
         });
       }
-      db[table].push({ ...row });
+      for (const col of UNIQUE[table] ?? []) {
+        if (
+          nova[col] != null &&
+          db[table].some((r) => String(r[col]) === String(nova[col]))
+        ) {
+          return send(409, {
+            message: `duplicate key value violates unique constraint "${table}_${col}_uniq"`,
+            code: "23505",
+          });
+        }
+      }
+      if (!nova.created_at) nova.created_at = new Date().toISOString();
+      if (!nova.updated_at) nova.updated_at = nova.created_at;
+      db[table].push(nova);
+      gravadas.push(nova);
     }
-    const wantsBody = (req.headers.prefer ?? "").includes("return=representation");
-    return send(201, wantsBody ? incoming : undefined);
+    if (!querCorpo) return send(201);
+    return sendRows(201, gravadas);
   }
 
   if (req.method === "PATCH") {
     const patch = await readBody(req);
     const targets = applyFilters(db[table], params);
-    for (const row of targets) Object.assign(row, patch, { updated_at: new Date().toISOString() });
-    return send(204);
+    for (const row of targets) {
+      Object.assign(row, patch, { updated_at: new Date().toISOString() });
+    }
+    if (!querCorpo) return send(204);
+    return sendRows(200, targets);
   }
 
   if (req.method === "DELETE") {
@@ -205,7 +285,8 @@ const server = createServer(async (req, res) => {
     const ids = new Set(targets.map((r) => r.id));
     db[table] = db[table].filter((r) => !ids.has(r.id));
     for (const row of targets) cascadeDelete(table, row);
-    return send(204);
+    if (!querCorpo) return send(204);
+    return sendRows(200, targets);
   }
 
   return send(405, { message: "método não suportado" });

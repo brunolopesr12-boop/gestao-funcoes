@@ -33,6 +33,22 @@ export default function HomePage() {
       title="Minhas empresas"
       subtitle={`${companies.length} ${companies.length === 1 ? "empresa" : "empresas"} · dados sincronizados`}
     >
+      <Link
+        href="/kds"
+        className="card card-hover mb-4 flex items-center gap-3 border-amber-500/40 bg-amber-500/10 p-4"
+      >
+        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-amber-500/20 text-2xl">
+          🍳
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-lg font-extrabold">KDS — Sr. Strogonoff</span>
+          <span className="block text-sm text-slate-400">
+            Comandas do delivery na tela da cozinha
+          </span>
+        </span>
+        <span className="text-2xl text-slate-600">›</span>
+      </Link>
+
       {companies.length === 0 ? (
         <EmptyState
           emoji="🏢"

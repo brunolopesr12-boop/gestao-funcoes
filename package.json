@@ -9,7 +9,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "node scripts/fix-test-imports.mjs && node --test tests/*.test.mjs",
-    "pretest": "tsc src/lib/derive.ts src/lib/types.ts src/lib/selectors.ts --outDir .tmp-test --module esnext --target es2022 --moduleResolution bundler --skipLibCheck --removeComments false"
+    "pretest": "tsc src/lib/derive.ts src/lib/types.ts src/lib/selectors.ts src/lib/format.ts src/lib/kds/types.ts src/lib/kds/money.ts src/lib/kds/normalize.ts src/lib/kds/alerts.ts src/lib/kds/row.ts src/lib/kds/samples.ts --outDir .tmp-test --module esnext --target es2022 --moduleResolution bundler --skipLibCheck --removeComments false"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.58.0",

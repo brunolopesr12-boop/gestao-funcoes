@@ -102,6 +102,109 @@ entra no histórico — que continua disponível mesmo depois de desmarcar.
 | **Quem sabe fazer isso?** | Por processo: quem está certificado, treinando ou não treinado — quem pode substituir quem |
 | **Visão gerencial** | "Minha empresa está coberta?", funções sem apto, sem gente, sem processo, funcionários sem função, treinamentos parados |
 | **Histórico** | Linha do tempo de treinamentos e cadastros |
+| **KDS — Sr. Strogonoff** | Comandas do delivery: filas, alertas, conferência e despacho |
+
+## KDS — Sr. Strogonoff (comandas do delivery)
+
+Tela de cozinha em `/kds` para substituir a notinha de papel:
+
+```
+iFood → comanda no KDS → alertas piscando → produzir → conferir → despachar → status volta pro iFood
+```
+
+### O que a tela faz
+
+- **Quatro filas**: Novos · Em produção · Prontos/conferência · Despachados
+  (cancelados aparecem numa faixa separada, sem poder ser despachados).
+- **Alertas impossíveis de ignorar**, gerados a partir do próprio pedido:
+  `💰 RECEBER R$ X`, `💵 TROCO PARA R$ Y`, `🥤 NÃO ESQUECER BEBIDA`,
+  `➕ ITEM EXTRA`, `🧂 MOLHO`, `⚠️ OBSERVAÇÃO IMPORTANTE`,
+  `🛵 CHAMAR OUTRO MOTOBOY`, `📍 ATENÇÃO NA ENTREGA` — os críticos piscam.
+  Quando está tudo pago, aparece `✅ PAGO PELO APP`.
+- **Cronômetro** por pedido e `🔴 PEDIDO ATRASADO` passando do limite (ajustável
+  em ⚙️, padrão 25 min).
+- **Conferência** em 8 itens (comida, bebida, adicionais, molhos, observações,
+  pagamento, troco, entrega). O que não existe no pedido já vem liberado.
+- **Despacho bloqueado** enquanto houver alerta crítico sem conferência — dá para
+  forçar, mas só com ação explícita, e fica registrado.
+- Som opcional no pedido novo, estado da conexão no topo e atualização
+  automática em todos os monitores (Supabase Realtime).
+
+### Alertas novos no futuro
+
+Todos os alertas são regras em [`src/lib/kds/alerts.ts`](src/lib/kds/alerts.ts).
+Para criar um tipo novo basta acrescentar um item em `ALERT_RULES` — a tela, a
+conferência e o bloqueio de despacho passam a considerá-lo sozinhos.
+
+### 1. Criar as tabelas
+
+No Supabase: **SQL Editor → New query** → cole
+[`supabase/kds.sql`](supabase/kds.sql) → **Run**. Pode rodar de novo sem problema.
+
+### 2. Ligar a integração do iFood
+
+A integração usa a **Merchant API oficial** do iFood (nada de scraping). As
+credenciais ficam **só no servidor** — nenhuma delas tem prefixo
+`NEXT_PUBLIC_`, então nunca chegam ao navegador.
+
+Na Vercel (**Settings → Environment Variables**) ou no `.env.local`:
+
+| Variável | O que é |
+|---|---|
+| `IFOOD_CLIENT_ID` | Client ID da sua aplicação no Portal do Desenvolvedor iFood |
+| `IFOOD_CLIENT_SECRET` | Client Secret da mesma aplicação |
+| `IFOOD_MERCHANT_ID` | ID da loja (vários separados por vírgula) |
+| `IFOOD_API_BASE` | opcional — padrão `https://merchant-api.ifood.com.br` |
+| `SUPABASE_SERVICE_ROLE_KEY` | opcional — se ausente, o servidor usa a chave anon |
+| `KDS_COMPANY_ID` | opcional — amarra as comandas a uma empresa do cadastro |
+
+**O que ainda depende de você (não dá para fazer por código):**
+
+1. Criar a aplicação no [Portal do Desenvolvedor iFood](https://developer.ifood.com.br)
+   e pegar Client ID / Client Secret.
+2. Pedir os módulos **Order** e **Events** (`ORDER_STATUS`) para a aplicação.
+3. Passar pela **homologação** do iFood para a aplicação sair de teste.
+4. Vincular a loja (merchant) à aplicação e anotar o `merchantId`.
+
+Enquanto isso não estiver pronto, o KDS diz na cara `🔴 iFood não configurado` e
+lista o que falta em ⚙️ — ele **nunca** finge que a integração está no ar.
+
+### 3. Como os pedidos entram
+
+O servidor faz o *polling* oficial de eventos (`/events/v1.0/events:polling`),
+confirma o recebimento (`acknowledgment`), busca o detalhe do pedido e grava a
+comanda. A rota é `POST /api/ifood/poll` e a tela do KDS a chama a cada 30
+segundos (intervalo mínimo exigido pelo iFood, respeitado também entre
+instâncias). **Deixe a tela do KDS aberta** na cozinha: é ela que mantém o ciclo
+rodando. Se preferir, aponte um agendador externo para essa mesma rota.
+
+Proteção contra duplicidade em duas camadas: o `id` do evento é chave primária em
+`kds_ifood_events` e o `ifood_order_id` é índice único em `kds_orders` — o mesmo
+pedido nunca vira duas comandas, mesmo com reenvio ou queda de conexão.
+
+### 4. O que volta para o iFood
+
+| Ação no KDS | Chamada na Merchant API |
+|---|---|
+| **Aceitar** | `confirm` (+ `startPreparation`, se a loja usar) |
+| **Pedido pronto** | `readyToPickup` |
+| **Despachar** (entrega própria) | `dispatch` |
+| **Despachar** (entrega do iFood) | nada — quem despacha é o entregador do iFood; a loja já enviou `readyToPickup` |
+
+Se o iFood recusar a mudança, o KDS **não** avança a etapa em silêncio: mostra o
+erro devolvido pela API.
+
+> **Mensagem automática para o cliente:** não foi implementada. O iFood já avisa
+> o cliente quando o status muda, e mandar um texto próprio exigiria a API de
+> chat (integração adicional). Ficou de fora de propósito.
+
+### Pedido de teste
+
+Em ⚙️ há botões que criam comandas marcadas com 🧪 **TESTE** (pedido com bebida,
+com troco, com observação, entrega própria etc.). Servem para a equipe treinar e
+para conferir os alertas. Essas comandas **não** enviam nada ao iFood.
+
+---
 
 ## Sincronização entre aparelhos
 
@@ -127,7 +230,15 @@ src/
     derive.ts               progresso, status e APTIDÃO
     selectors.ts            pendências, cobertura, "quem sabe fazer", parados
     store.tsx               carga, realtime e todas as gravações
+    kds/                    KDS: tipos, normalização do pedido, alertas, comanda
+    ifood/                  integração oficial (auth, polling, status) — servidor
+    server/                 acesso ao banco e regras do fluxo — servidor
+  components/kds/           comanda, alertas, filas, conferência
+  app/kds/                  tela do KDS
+  app/api/ifood/            polling e status da integração
+  app/api/kds/              ações do pedido, configuração e pedido de teste
 supabase/schema.sql         banco completo + dados iniciais
+supabase/kds.sql            tabelas do KDS e da integração iFood
 tests/                      testes da lógica + servidor falso para testes locais
 ```
 
@@ -137,7 +248,7 @@ tests/                      testes da lógica + servidor falso para testes locai
 npm run dev        # desenvolvimento
 npm run build      # build de produção
 npm run typecheck  # checagem de tipos
-npm test           # testes da lógica de aptidão/pendências
+npm test           # testes da lógica de aptidão/pendências e do KDS
 ```
 
 ### Testar as telas sem um Supabase real
@@ -161,6 +272,10 @@ A primeira versão não tem login: quem tiver o endereço consegue ver e editar.
 uso interno com um endereço não divulgado isso costuma bastar. Quando quiser
 proteger, ative o Supabase Auth e troque, no fim do `schema.sql`,
 `to anon, authenticated` por `to authenticated` nas policies.
+
+As credenciais do iFood são a exceção: ficam só em variável de ambiente do
+servidor, nunca no banco e nunca no navegador. Todas as chamadas à Merchant API
+saem das rotas em `src/app/api/`.
 
 ## Crescer depois
 

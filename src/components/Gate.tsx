@@ -1,13 +1,20 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { useData } from "@/lib/store";
 import { Button } from "./ui";
 
 export function Gate({ children }: { children: React.ReactNode }) {
   const { loading, error, refresh } = useData();
+  const pathname = usePathname();
 
   if (!isSupabaseConfigured) return <SetupScreen />;
+
+  // O KDS tem carregamento e tratamento de erro próprios (e não depende dos
+  // dados de treinamento), então não passa pelo gate geral: um erro no
+  // cadastro não pode apagar a tela da cozinha.
+  if (pathname?.startsWith("/kds")) return <>{children}</>;
 
   if (loading) {
     return (
