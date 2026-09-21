@@ -73,6 +73,8 @@ type Ctx = {
   data: Data;
   loading: boolean;
   error: string | null;
+  /** tabelas que ainda não existem no banco (schema.sql não rodado) */
+  missingTables: string[];
   live: boolean;
   trainingIndex: TrainingIndex;
   trainer: string;
@@ -116,6 +118,15 @@ function upsertById<T extends { id: string }>(list: T[], row: T): T[] {
 
 const TRAINER_STORAGE_KEY = "gf.trainer";
 
+/** Tabelas que podem não existir ainda (schema.sql antigo no banco). */
+const OPTIONAL_TABLES = new Set<string>(["kb_articles"]);
+
+/** "essa tabela não existe" vindo do PostgREST. */
+function isMissingTable(err: { code?: string; message?: string }): boolean {
+  if (err.code === "42P01" || err.code === "PGRST205") return true;
+  return /does not exist|schema cache/i.test(err.message ?? "");
+}
+
 /* ------------------------------------------------------------------ */
 /* Provider                                                            */
 /* ------------------------------------------------------------------ */
@@ -124,6 +135,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [data, setData] = useState<Data>(EMPTY);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [missingTables, setMissingTables] = useState<string[]>([]);
   const [live, setLive] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [trainer, setTrainerState] = useState("");
@@ -170,16 +182,26 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             query = query.order("created_at", { ascending: false }).limit(500);
           }
           const { data: rows, error: err } = await query;
-          if (err) throw new Error(`${table}: ${err.message}`);
-          return [table, rows ?? []] as const;
+          if (err) {
+            // Tabela nova ainda não criada (schema.sql desatualizado): o
+            // resto do app continua funcionando normalmente.
+            if (OPTIONAL_TABLES.has(table) && isMissingTable(err)) {
+              return [table, [], true] as const;
+            }
+            throw new Error(`${table}: ${err.message}`);
+          }
+          return [table, rows ?? [], false] as const;
         }),
       );
       const next = { ...EMPTY };
-      for (const [table, rows] of results) {
+      const missing: string[] = [];
+      for (const [table, rows, absent] of results) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (next as any)[table] = rows;
+        if (absent) missing.push(table);
       }
       setData(next);
+      setMissingTables(missing);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -295,6 +317,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     data,
     loading,
     error,
+    missingTables,
     live,
     trainingIndex,
     trainer,

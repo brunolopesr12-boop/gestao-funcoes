@@ -3,8 +3,10 @@ import { isAdmin } from "@/lib/vila-gpt/server/auth";
 import {
   invalidateSnapshot,
   isDbConfigured,
+  isMissingTable,
   isUuid,
   newId,
+  SCHEMA_HINT,
   serverSupabase,
 } from "@/lib/vila-gpt/server/db";
 import { KB_KINDS, type KbArticle, type KbKind } from "@/lib/types";
@@ -115,7 +117,11 @@ export async function POST(req: Request) {
     updated_at: now,
   };
   const { error } = await serverSupabase().from("kb_articles").insert(row);
-  if (error) return NextResponse.json({ erro: error.message }, { status: 502 });
+  if (error) {
+    console.error("[vila-gpt] criar informação:", error.message);
+    if (isMissingTable(error)) return NextResponse.json({ erro: SCHEMA_HINT }, { status: 503 });
+    return NextResponse.json({ erro: "Não consegui salvar a informação." }, { status: 502 });
+  }
   invalidateSnapshot();
   await logActivity({
     company_id: row.company_id,
@@ -144,7 +150,10 @@ export async function PUT(req: Request) {
   const { data: before } = await sb.from("kb_articles").select("*").eq("id", input.id).maybeSingle();
   if (!before) return NextResponse.json({ erro: "Informação não encontrada." }, { status: 404 });
   const { error } = await sb.from("kb_articles").update(patch).eq("id", input.id);
-  if (error) return NextResponse.json({ erro: error.message }, { status: 502 });
+  if (error) {
+    console.error("[vila-gpt] editar informação:", error.message);
+    return NextResponse.json({ erro: "Não consegui salvar a alteração." }, { status: 502 });
+  }
   invalidateSnapshot();
   const row = { ...(before as KbArticle), ...patch } as KbArticle;
   await logActivity({
@@ -169,7 +178,10 @@ export async function DELETE(req: Request) {
   const sb = serverSupabase();
   const { data: before } = await sb.from("kb_articles").select("*").eq("id", id).maybeSingle();
   const { error } = await sb.from("kb_articles").delete().eq("id", id);
-  if (error) return NextResponse.json({ erro: error.message }, { status: 502 });
+  if (error) {
+    console.error("[vila-gpt] excluir informação:", error.message);
+    return NextResponse.json({ erro: "Não consegui excluir a informação." }, { status: 502 });
+  }
   invalidateSnapshot();
   const b = before as KbArticle | null;
   await logActivity({

@@ -7,6 +7,7 @@ import { AppShell } from "@/components/AppShell";
 import { Button, EmptyState, TextInput } from "@/components/ui";
 import { AnswerText } from "@/components/vila-gpt/AnswerText";
 import { DocSheet } from "@/components/vila-gpt/DocSheet";
+import { SchemaCard } from "@/components/vila-gpt/SchemaCard";
 import { useData } from "@/lib/store";
 import { sortedCompanies, companyEmployees } from "@/lib/selectors";
 import { normalize } from "@/lib/vila-gpt/text";
@@ -60,7 +61,7 @@ export default function VilaGptPage() {
 }
 
 function VilaGpt() {
-  const { data, trainer, setTrainer, notify } = useData();
+  const { data, trainer, setTrainer, notify, missingTables } = useData();
   const router = useRouter();
   const params = useSearchParams();
 
@@ -298,7 +299,9 @@ function VilaGpt() {
         ))}
       </div>
 
-      {tab === "manual" ? (
+      {missingTables.includes("kb_articles") ? (
+        <SchemaCard />
+      ) : tab === "manual" ? (
         <Manual docs={docs} query={query} setQuery={setQuery} onOpen={setOpenDoc} />
       ) : !trainer ? (
         <NameCard employees={employees.map((e) => e.name)} onDone={identify} />

@@ -59,6 +59,26 @@ export function serverSupabase(): SupabaseClient {
 }
 
 /* ------------------------------------------------------------------ */
+/* Tabela ainda não criada                                             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Detecta "essa tabela não existe".
+ *
+ * Acontece quando o schema.sql novo ainda não foi rodado no Supabase.
+ * Nesse caso o VILA GPT trabalha só com o que os outros módulos já têm,
+ * em vez de derrubar o app inteiro.
+ */
+export function isMissingTable(err: { code?: string; message?: string } | null): boolean {
+  if (!err) return false;
+  if (err.code === "42P01" || err.code === "PGRST205") return true;
+  return /does not exist|schema cache/i.test(err.message ?? "");
+}
+
+export const SCHEMA_HINT =
+  "As tabelas do VILA GPT ainda não foram criadas. Abra o Supabase → SQL Editor e rode o arquivo supabase/schema.sql.";
+
+/* ------------------------------------------------------------------ */
 /* Leitura paginada (o PostgREST devolve no máximo 1000 linhas por vez) */
 /* ------------------------------------------------------------------ */
 
@@ -71,6 +91,8 @@ export type SelectAllOptions = {
   order?: { column: string; ascending?: boolean };
   /** máximo de linhas (padrão: sem limite prático) */
   max?: number;
+  /** se a tabela ainda não existir, devolve lista vazia em vez de erro */
+  optional?: boolean;
 };
 
 /** Lê todas as linhas de uma tabela, página a página. */
@@ -88,7 +110,13 @@ export async function selectAll<T = Record<string, unknown>>(
     if (opts.order) q = q.order(opts.order.column, { ascending: opts.order.ascending ?? false });
     else q = q.order("id", { ascending: true });
     const { data, error } = await q.range(from, to);
-    if (error) throw new Error(`${table}: ${error.message}`);
+    if (error) {
+      if (opts.optional && isMissingTable(error)) {
+        console.warn(`[vila-gpt] tabela ${table} ainda não existe. ${SCHEMA_HINT}`);
+        return [];
+      }
+      throw new Error(`${table}: ${error.message}`);
+    }
     const rows = (data ?? []) as T[];
     out.push(...rows);
     if (rows.length < to - from + 1) break;
@@ -115,9 +143,15 @@ const SNAPSHOT_TABLES = [
 const SNAPSHOT_TTL_MS = 15_000;
 let cached: { at: number; data: Promise<KnowledgeInput> } | null = null;
 
+/** tabelas novas do VILA GPT: ausentes = schema ainda não aplicado */
+const OPTIONAL_TABLES = new Set<string>(["kb_articles"]);
+
 async function fetchSnapshot(): Promise<KnowledgeInput> {
   const results = await Promise.all(
-    SNAPSHOT_TABLES.map(async (table) => [table, await selectAll(table)] as const),
+    SNAPSHOT_TABLES.map(
+      async (table) =>
+        [table, await selectAll(table, { optional: OPTIONAL_TABLES.has(table) })] as const,
+    ),
   );
   const out = {} as Record<(typeof SNAPSHOT_TABLES)[number], unknown[]>;
   for (const [table, rows] of results) out[table] = rows;

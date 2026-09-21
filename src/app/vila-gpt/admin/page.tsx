@@ -6,6 +6,7 @@ import { AppShell } from "@/components/AppShell";
 import { Button, Field, TextInput } from "@/components/ui";
 import { ArticleSheet, type ArticleDraft } from "@/components/vila-gpt/ArticleSheet";
 import { DocSheet } from "@/components/vila-gpt/DocSheet";
+import { SchemaCard } from "@/components/vila-gpt/SchemaCard";
 import { KnowledgeBaseTab } from "@/components/vila-gpt/admin/KnowledgeBaseTab";
 import { HistoryTab } from "@/components/vila-gpt/admin/HistoryTab";
 import { DashboardTab } from "@/components/vila-gpt/admin/DashboardTab";
@@ -40,7 +41,7 @@ export default function AdminPage() {
 }
 
 function Admin() {
-  const { data, notify } = useData();
+  const { data, notify, missingTables } = useData();
   const params = useSearchParams();
 
   const [session, setSession] = useState<AdminSession | null>(null);
@@ -142,7 +143,9 @@ function Admin() {
         help: "Seu nome fica registrado nas alterações que você fizer na base oficial.",
       }}
     >
-      {!session && !sessionError ? (
+      {missingTables.includes("kb_articles") ? (
+        <SchemaCard />
+      ) : !session && !sessionError ? (
         <p className="pt-6 text-center text-sm text-slate-500">Verificando acesso…</p>
       ) : sessionError ? (
         <div className="card p-5">
