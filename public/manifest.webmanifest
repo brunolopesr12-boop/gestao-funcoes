@@ -6,6 +6,14 @@
   "background_color": "#0b1020",
   "theme_color": "#0b1020",
   "orientation": "portrait",
+  "shortcuts": [
+    {
+      "name": "VILA GPT",
+      "short_name": "VILA GPT",
+      "url": "/vila-gpt",
+      "description": "Tire duvidas sobre a empresa"
+    }
+  ],
   "icons": [
     { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
   ]

@@ -92,7 +92,7 @@ copie **tudo** (Ctrl+A, Ctrl+C) e cole no editor.
 
 Deve aparecer *Success. No rows returned*. Isso cria:
 
-- as 10 tabelas,
+- as 12 tabelas (incluindo as duas do VILA GPT),
 - as permissões de acesso,
 - a **sincronização em tempo real** entre os aparelhos,
 - e já cadastra **Vila Rica** e **Sr. Strogonoff** com as funções e os processos
@@ -113,6 +113,24 @@ Quando terminar, abra o endereço (`gestao-funcoes.vercel.app`). As duas empresa
 devem aparecer na tela inicial. **Pronto.**
 
 ---
+
+## 5b. Ligar o VILA GPT (assistente dos funcionários)
+
+O VILA GPT já vem no app. Faltam só duas variáveis, em **Settings → Environment
+Variables** do projeto na Vercel:
+
+| Variável | Valor |
+|---|---|
+| `VILA_GPT_ADMIN_PIN` | A senha que só a administração vai saber (mín. 4 caracteres). Sem ela ninguém altera a base oficial. |
+| `ANTHROPIC_API_KEY` | Chave da API da Anthropic (<https://console.anthropic.com>). Opcional: sem ela o VILA GPT mostra o procedimento oficial mais parecido em vez de redigir a resposta. |
+
+Depois faça o **Redeploy** de novo (passo 5). O `schema.sql` do passo 4 já cria as
+tabelas do VILA GPT.
+
+Para começar: abra **VILA GPT → ⚙️ → entre com a senha → + Cadastrar informação
+oficial** e cadastre os primeiros procedimentos (fechamento de caixa, abertura,
+o que fazer quando o cliente reclama…). As funções, processos e checklists já
+cadastrados entram automaticamente.
 
 ## 6. Colocar na tela do celular
 
@@ -162,3 +180,6 @@ A Vercel refaz o deploy sozinha em ~1 minuto.
 | "Não consegui carregar os dados" com erro de tabela | O passo 4 não rodou. Volte ao SQL Editor e rode o `schema.sql` inteiro. |
 | A bolinha do topo fica cinza | A sincronização em tempo real não conectou. Rode o `schema.sql` de novo (o bloco final liga o realtime) e recarregue a página. Mesmo cinza o app funciona; ele recarrega os dados ao voltar para a tela. |
 | Empresas não aparecem | Supabase → **Table Editor → companies**. Se estiver vazia, rode o `schema.sql` de novo. |
+| VILA GPT: "Falta definir a senha de administrador" | Adicione `VILA_GPT_ADMIN_PIN` nas variáveis da Vercel e refaça o Redeploy. |
+| VILA GPT responde "IA indisponível" | Confira `ANTHROPIC_API_KEY` e o saldo/limites da conta na Anthropic. Enquanto isso ele mostra a fonte oficial mais parecida. |
+| VILA GPT: "Não consegui ler a base" | O `schema.sql` mais novo não rodou (tabelas `kb_articles`/`gpt_questions`). Rode-o de novo no SQL Editor. |

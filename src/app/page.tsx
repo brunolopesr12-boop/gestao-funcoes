@@ -33,6 +33,22 @@ export default function HomePage() {
       title="Minhas empresas"
       subtitle={`${companies.length} ${companies.length === 1 ? "empresa" : "empresas"} · dados sincronizados`}
     >
+      <Link
+        href="/vila-gpt"
+        className="card card-hover mb-4 flex items-center gap-3 border-blue-500/40 bg-blue-500/10 p-4"
+      >
+        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-blue-600 text-2xl">
+          💬
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-lg font-extrabold leading-tight">VILA GPT</p>
+          <p className="text-xs text-blue-100/80">
+            Tire dúvidas sobre procedimentos, regras e cardápio da empresa
+          </p>
+        </div>
+        <span className="text-2xl text-blue-200">›</span>
+      </Link>
+
       {companies.length === 0 ? (
         <EmptyState
           emoji="🏢"

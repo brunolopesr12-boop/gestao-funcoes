@@ -48,6 +48,7 @@ const TABLES = [
   "training_steps",
   "training_events",
   "activity_log",
+  "kb_articles",
 ] as const;
 
 type TableName = (typeof TABLES)[number];
@@ -63,6 +64,7 @@ const EMPTY: Data = {
   training_steps: [],
   training_events: [],
   activity_log: [],
+  kb_articles: [],
 };
 
 type Toast = { id: string; text: string; kind: "ok" | "erro" };

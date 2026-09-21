@@ -186,6 +186,107 @@ export const STATUS_META: Record<
   },
 };
 
+
+/* ------------------------------------------------------------------ */
+/* VILA GPT — base de conhecimento e histórico de perguntas            */
+/* ------------------------------------------------------------------ */
+
+export const KB_KINDS = [
+  "procedimento",
+  "pergunta",
+  "regra",
+  "treinamento",
+  "ficha_tecnica",
+  "cardapio",
+  "produto",
+  "documento",
+  "sistema",
+  "outro",
+] as const;
+export type KbKind = (typeof KB_KINDS)[number];
+
+export const KB_KIND_META: Record<KbKind, { label: string; emoji: string; hint: string }> = {
+  procedimento: { label: "Procedimento", emoji: "📋", hint: "Passo a passo de como fazer algo" },
+  pergunta: { label: "Pergunta e resposta", emoji: "❓", hint: "Uma dúvida comum e a resposta oficial" },
+  regra: { label: "Regra", emoji: "📌", hint: "Regra de atendimento, delivery, caixa…" },
+  treinamento: { label: "Treinamento", emoji: "🎓", hint: "Material de treinamento" },
+  ficha_tecnica: { label: "Ficha técnica", emoji: "🧾", hint: "Receita, quantidades e preparo" },
+  cardapio: { label: "Cardápio", emoji: "🍽️", hint: "Itens do cardápio e composição" },
+  produto: { label: "Produto / ingrediente", emoji: "📦", hint: "Produto, ingrediente, embalagem, estoque" },
+  documento: { label: "Documento", emoji: "📄", hint: "Material oficial da empresa" },
+  sistema: { label: "Informação do sistema", emoji: "🖥️", hint: "Como usar o sistema" },
+  outro: { label: "Outro", emoji: "🗂️", hint: "Qualquer outra informação oficial" },
+};
+
+/** Sugestões de área para organizar a base. O campo é livre. */
+export const KB_CATEGORIES = [
+  "Abertura e fechamento",
+  "Caixa",
+  "Atendimento",
+  "Cozinha",
+  "Montagem de pedidos",
+  "Delivery",
+  "Cardápio",
+  "Estoque",
+  "Limpeza",
+  "Perdas e devoluções",
+  "Sistema",
+  "Geral",
+];
+
+export type KbArticle = {
+  id: string;
+  /** null = vale para todas as empresas */
+  company_id: string | null;
+  kind: KbKind;
+  category: string;
+  title: string;
+  /** como o funcionário perguntaria (opcional) */
+  question: string;
+  /** resposta / passo a passo, um passo por linha */
+  content: string;
+  /** sinônimos e termos de busca, separados por vírgula */
+  keywords: string;
+  /** só o que é oficial entra nas respostas do VILA GPT */
+  official: boolean;
+  position: number;
+  updated_by: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type GptSource = {
+  /** id do documento na base unificada, ex.: kb:<uuid>, process:<uuid> */
+  id: string;
+  title: string;
+  /** texto exibido: "Procedimento — Fechamento de caixa" */
+  label: string;
+  href: string;
+};
+
+export type GptMode = "ia" | "busca" | "sem_resposta";
+
+export type GptQuestion = {
+  id: string;
+  company_id: string | null;
+  employee_id: string | null;
+  employee_name: string;
+  question: string;
+  answer: string;
+  sources: GptSource[];
+  found: boolean;
+  topic: string;
+  topic_label: string;
+  mode: GptMode;
+  helpful: boolean | null;
+  model: string;
+  created_at: string;
+};
+
+/** Frase oficial quando a base não cobre a pergunta. */
+export const GPT_NOT_FOUND =
+  "Não encontrei esse procedimento na base oficial da empresa. Procure um gerente ou responsável.";
+
 /** Snapshot completo do banco carregado no cliente. */
 export type AppData = {
   companies: Company[];
@@ -198,4 +299,5 @@ export type AppData = {
   training_steps: TrainingStep[];
   training_events: TrainingEvent[];
   activity_log: ActivityLog[];
+  kb_articles: KbArticle[];
 };

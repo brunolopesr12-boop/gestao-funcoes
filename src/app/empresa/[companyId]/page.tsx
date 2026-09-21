@@ -129,6 +129,19 @@ export default function CompanyHub() {
       {/* Navegação -------------------------------------------------- */}
       <SectionTitle>Painel</SectionTitle>
       <div className="grid grid-cols-2 gap-3">
+        <Link
+          href={`/vila-gpt?empresa=${companyId}`}
+          className="card card-hover col-span-2 flex items-center gap-3 border-blue-500/40 bg-blue-500/10 p-4"
+        >
+          <span className="text-3xl">💬</span>
+          <div className="min-w-0 flex-1">
+            <span className="block font-bold leading-tight">VILA GPT</span>
+            <span className="text-xs text-blue-100/80">
+              Dúvidas sobre procedimentos, regras e cardápio — com a fonte oficial
+            </span>
+          </div>
+          <span className="text-xl text-blue-200">›</span>
+        </Link>
         {NAV.map((n) => (
           <Link
             key={n.href}
