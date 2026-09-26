@@ -41,28 +41,34 @@ export function ManualEntryDrawer({
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // sugestões a partir do cadastro: validade pelo prazo padrão, custo e fornecedor
+  function applyProductDefaults(p: Product | null) {
+    setUnit("");
+    setExpires(p?.shelf_life_days ? addDaysISO(todayISO(), p.shelf_life_days) : "");
+    setCost(p && p.cost > 0 ? p.cost : null);
+    setSupplier(p?.default_supplier_id ?? "");
+  }
+
+  // reinicia ao abrir (com o produto travado já preenchido)
   useEffect(() => {
     if (!open) return;
-    setProduct(fixedProduct ?? null);
+    const p = fixedProduct ?? null;
+    setProduct(p);
+    applyProductDefaults(p);
     setLocation("");
     setQty(null);
-    setUnit("");
     setLotCode("");
-    setExpires("");
-    setCost(null);
-    setSupplier("");
     setOrigin("inicial");
     setNotes("");
-  }, [open, fixedProduct]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, fixedProduct?.id]);
 
-  // ao escolher o produto: sugere validade pelo prazo padrão, custo e fornecedor
+  // ao escolher outro produto no seletor
   useEffect(() => {
-    if (!product) return;
-    setUnit("");
-    setExpires(product.shelf_life_days ? addDaysISO(todayISO(), product.shelf_life_days) : "");
-    setCost(product.cost > 0 ? product.cost : null);
-    setSupplier(product.default_supplier_id ?? "");
-  }, [product]);
+    if (!product || fixedProduct) return;
+    applyProductDefaults(product);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product?.id]);
 
   async function submit() {
     if (!store || !product) return;

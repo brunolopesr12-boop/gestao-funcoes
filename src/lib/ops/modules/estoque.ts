@@ -7,6 +7,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { rpc, unwrap } from "@/lib/ops/rpc";
+import { toOpsError } from "@/lib/ops/errors";
 import { useUnits } from "@/lib/ops/hooks";
 import { useSession } from "@/lib/ops/session";
 import type { ExpiryStatus, LotStatus, MovementType, Product, StockLevel, StockLot, StoreMinimal, TransferRow, UUID, Unit } from "./estoque-types";
@@ -173,9 +174,9 @@ export function useStockKpis(storeId: string | undefined) {
         sb.from("v_expiring_lots").select("lot_id", { count: "exact", head: true }).eq("store_id", storeId!).eq("expiry_status", "vencido"),
         sb.from("v_stock_by_product").select("product_id", { count: "exact", head: true }).eq("store_id", storeId!).eq("active", true).in("level", ["baixo", "critico"]),
       ]);
-      if (lots.error) throw lots.error;
-      if (expired.error) throw expired.error;
-      if (below.error) throw below.error;
+      if (lots.error) throw toOpsError(lots.error);
+      if (expired.error) throw toOpsError(expired.error);
+      if (below.error) throw toOpsError(below.error);
       const cats = byCat ?? [];
       return {
         stock_value: cats.reduce((s, c) => s + Number(c.value ?? 0), 0),

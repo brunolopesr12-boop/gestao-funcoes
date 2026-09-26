@@ -28,7 +28,7 @@ export function ReportDetailDrawer({ kind, row, onClose }: { kind: Kind | null; 
   const q = useQuery({
     queryKey: [meta?.table ?? "detail", id],
     enabled: Boolean(meta && id),
-    queryFn: async () => unwrap(await supabaseBrowser().from(meta!.table).select(meta!.select).eq(meta!.fk, id!).order(meta!.order).limit(MAX_ITEMS)) as Item[],
+    queryFn: async () => unwrap(await supabaseBrowser().from(meta!.table).select(meta!.select).eq(meta!.fk, id!).order(meta!.order).limit(MAX_ITEMS)) as unknown as Item[],
   });
   const open = Boolean(kind && row);
   const title = meta ? `${meta.title} ${row?.number ? `· ${row.number}` : ""}` : "";

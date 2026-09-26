@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSession } from "@/lib/ops/session";
 import { useInvalidate } from "@/lib/ops/query";
 import { rpc } from "@/lib/ops/rpc";
@@ -36,9 +36,11 @@ export function AdjustDrawer({
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState(false);
+  const preselected = useRef(false);
 
   useEffect(() => {
     if (!open) return;
+    preselected.current = false;
     setRow(null);
     setNewQty(null);
     setReason("contagem");
@@ -47,7 +49,8 @@ export function AdjustDrawer({
   }, [open, product?.id]);
 
   useEffect(() => {
-    if (!open || !initialLotId || !lots.data) return;
+    if (!open || !initialLotId || !lots.data || preselected.current) return;
+    preselected.current = true;
     const found = lots.data.find((l) => l.lot_id === initialLotId);
     if (found) setRow(found);
   }, [open, initialLotId, lots.data]);

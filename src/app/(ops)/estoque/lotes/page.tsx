@@ -56,7 +56,7 @@ export default function LotesPage() {
       return { rows: (res.data ?? []) as StockBalance[], total: res.count ?? 0 };
     },
   });
-  useRealtimeInvalidate(["stock_items"], [["stock_lots"]]);
+  useRealtimeInvalidate(["stock_items", "stock_lots"], [["stock_items"], ["stock_lots"]]);
 
   const hasFilter = Boolean(t || expiry || status || location || supplier || origin);
   const rows = q.data?.rows ?? [];

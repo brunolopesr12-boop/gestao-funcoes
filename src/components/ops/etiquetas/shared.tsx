@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { downloadBlob, todayISO } from "@/lib/ops/format";
 import { Icon, type IconName } from "@/components/ops/Icon";
-import { Button, InlineAlert, useToast } from "@/components/ops/ui";
+import { Button, InlineAlert, Sheet, useToast } from "@/components/ops/ui";
 
 /** Link com aparência de botão. */
 export function LinkButton({
@@ -78,6 +78,21 @@ export function ZplButtons({ getZpl, disabled, filename }: { getZpl: () => strin
         <Icon name="file" size={18} /> Copiar ZPL
       </Button>
     </div>
+  );
+}
+
+/** Confirmação com botão principal (não destrutivo). */
+export function ConfirmActionSheet({
+  open, onClose, title, message, confirmLabel = "Confirmar", onConfirm, variant = "primary", busy,
+}: { open: boolean; onClose: () => void; title: string; message: React.ReactNode; confirmLabel?: string; onConfirm: () => void | Promise<void>; variant?: "primary" | "success" | "danger"; busy?: boolean }) {
+  return (
+    <Sheet open={open} onClose={onClose} title={title}>
+      <div className="mb-5 text-slate-300">{message}</div>
+      <div className="flex gap-3">
+        <Button variant="soft" size="lg" full onClick={onClose} disabled={busy}>Voltar</Button>
+        <Button variant={variant} size="lg" full disabled={busy} onClick={() => void onConfirm()}>{busy ? "Aguarde…" : confirmLabel}</Button>
+      </div>
+    </Sheet>
   );
 }
 

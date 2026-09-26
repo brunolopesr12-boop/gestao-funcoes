@@ -60,7 +60,7 @@ export default function EstoquePage() {
       return { rows: ((res.data ?? []) as StockByProduct[]).map((r) => ({ ...r, id: r.product_id })) as Row[], total: res.count ?? 0 };
     },
   });
-  useRealtimeInvalidate(["stock_items"], [["stock_lots"], ["stock_movements"]]);
+  useRealtimeInvalidate(["stock_items", "stock_lots"], [["stock_items"], ["stock_lots"], ["stock_movements"]]);
 
   const rows = q.data?.rows ?? [];
   const hasFilter = Boolean(t || category || level || kind);

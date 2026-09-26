@@ -91,7 +91,7 @@ function ValidadesPage() {
       return { rows: ((res.data ?? []) as ExpiringLot[]).map((r) => ({ ...r, id: r.lot_id })) as Row[], total: res.count ?? 0 };
     },
   });
-  useRealtimeInvalidate(["stock_items"], [["stock_lots"]]);
+  useRealtimeInvalidate(["stock_items", "stock_lots"], [["stock_items"], ["stock_lots"]]);
 
   // bloqueio rápido
   const [blocking, setBlocking] = useState<Row | null>(null);

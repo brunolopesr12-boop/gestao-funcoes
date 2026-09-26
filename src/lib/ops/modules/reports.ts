@@ -474,32 +474,22 @@ const validades: Report = {
     rowKey: (r) => String(r.lot_id),
     mobile: { title: "product_name", subtitle: ["lot_code", "expires_at", "expiry_status"], value: "quantity" },
     fetchPage: async (ctx, f, from, to) => {
+      // v_expiring_lots não expõe category_id: o filtro de categoria vira filtro pelo nome
+      let categoryName: string | null = null;
+      if (f.category) {
+        const c = await sb().from("categories").select("name").eq("id", f.category).maybeSingle();
+        categoryName = (c.data as { name?: string } | null)?.name ?? null;
+      }
       let q = sb().from("v_expiring_lots").select("*", { count: "exact" }).eq("store_id", ctx.storeId).order("expires_at").range(from, to);
       const set = EXPIRY_SETS[f.sel.expiry || "risco"];
       if (set) q = q.in("expiry_status", set);
-      if (f.category) q = q.eq("category_name", f.category); // substituído abaixo por id quando disponível
+      if (categoryName) q = q.eq("category_name", categoryName);
       if (f.product) q = q.eq("product_id", f.product.id);
       if (f.term.trim()) q = q.or(`product_name.ilike.${likeTerm(f.term)},lot_code.ilike.${likeTerm(f.term)},internal_code.ilike.${likeTerm(f.term)}`);
       return run<ReportRow[]>(q);
     },
   }],
 };
-// v_expiring_lots não expõe category_id: o filtro de categoria vira busca por nome via join no cliente
-validades.modes[0].fetchPage = async (ctx, f, from, to) => {
-  let categoryName: string | null = null;
-  if (f.category) {
-    const c = await sb().from("categories").select("name").eq("id", f.category).maybeSingle();
-    categoryName = (c.data as { name?: string } | null)?.name ?? null;
-  }
-  let q = sb().from("v_expiring_lots").select("*", { count: "exact" }).eq("store_id", ctx.storeId).order("expires_at").range(from, to);
-  const set = EXPIRY_SETS[f.sel.expiry || "risco"];
-  if (set) q = q.in("expiry_status", set);
-  if (categoryName) q = q.eq("category_name", categoryName);
-  if (f.product) q = q.eq("product_id", f.product.id);
-  if (f.term.trim()) q = q.or(`product_name.ilike.${likeTerm(f.term)},lot_code.ilike.${likeTerm(f.term)},internal_code.ilike.${likeTerm(f.term)}`);
-  return run<ReportRow[]>(q);
-};
-
 const fmtTemp = (v: unknown) => (v === null || v === undefined ? "—" : `${fmtQty(v, undefined, 1)} °C`);
 const temperaturas: Report = {
   key: "temperaturas", title: "Temperaturas", emoji: "🌡️", icon: "thermometer",

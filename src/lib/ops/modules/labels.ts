@@ -295,7 +295,7 @@ export function normalizeLayout(raw: unknown): LabelLayout {
   const fields = Array.isArray(l.fields)
     ? l.fields
         .filter((f): f is LabelField => Boolean(f) && typeof f === "object" && typeof (f as LabelField).key === "string")
-        .map((f) => ({
+        .map((f): LabelField => ({
           key: f.key, label: typeof f.label === "string" ? f.label : undefined, x: num(f.x, 0), y: num(f.y, 0), w: num(f.w, 20), h: num(f.h, 4), font: num(f.font, 7),
           bold: Boolean(f.bold), align: f.align === "center" || f.align === "right" ? f.align : "left",
         }))

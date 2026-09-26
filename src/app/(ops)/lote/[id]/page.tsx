@@ -38,19 +38,21 @@ function LotePage() {
   const q = useLotSummary(id);
   const s = q.data ?? null;
   const product = useProduct(s?.product.id ?? null);
-  useRealtimeInvalidate(["stock_items"], [["stock_lots"], ["stock_movements"]]);
+  useRealtimeInvalidate(["stock_items", "stock_lots"], [["stock_items"], ["stock_lots"], ["stock_movements"]]);
 
   const [consume, setConsume] = useState(false);
   const [adjust, setAdjust] = useState(false);
   const [qrValue, setQrValue] = useState("");
   useEffect(() => setQrValue(lotQrValue(id)), [id]);
 
+  // ação vinda do QR (/qr?next=consumir) — só quando o lote é da unidade selecionada,
+  // porque consumo/ajuste são lançados na unidade da sessão
   useEffect(() => {
-    if (!s) return;
+    if (!s || !store || s.lot.store_id !== store.id) return;
     if (acao === "consumir" && can("estoque.movimentar")) setConsume(true);
     else if (acao === "ajustar" && can("estoque.ajustar")) setAdjust(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [acao, s?.lot.id]);
+  }, [acao, s?.lot.id, store?.id]);
 
   if (q.isLoading) return <Skeleton rows={4} />;
   if (q.error) return <ErrorBox error={toOpsError(q.error as Error).message} onRetry={() => void q.refetch()} />;
@@ -66,13 +68,15 @@ function LotePage() {
   }
 
   const lot = s.lot;
-  const otherStore = store && lot.store_id !== store.id;
+  /** Lote de outra unidade: consumo, ajuste, transferência e contagem usam a unidade da sessão, então ficam bloqueados até trocar. */
+  const otherStore = Boolean(store && lot.store_id !== store.id);
+  const canSwitch = stores.some((x) => x.id === lot.store_id);
   const expiry = expiryStatusFromDays(s.days_to_expire);
   const expired = expiry === "vencido";
   const blocked = lot.status === "bloqueado";
   const hasBalance = Number(s.balance) > 0;
-  const canConsume = can("estoque.movimentar", lot.store_id) && hasBalance && !blocked && !expired;
-  const canAdjust = can("estoque.ajustar", lot.store_id);
+  const canConsume = !otherStore && can("estoque.movimentar", lot.store_id) && hasBalance && !blocked && !expired;
+  const canAdjust = !otherStore && can("estoque.ajustar", lot.store_id);
 
   const movColumns: Column<LotSummaryMovement>[] = [
     { key: "created_at", label: "Data", render: (r) => <span className="whitespace-nowrap tabular-nums text-slate-300">{fmtDateTime(r.created_at)}</span> },
@@ -101,9 +105,11 @@ function LotePage() {
 
       {otherStore && (
         <InlineAlert tone="blue" icon="building">
-          Este lote é da unidade <strong>{s.store?.name}</strong>, não da unidade selecionada ({store?.name}).
-          {stores.some((x) => x.id === lot.store_id) && (
+          Este lote é da unidade <strong>{s.store?.name}</strong>, não da unidade selecionada ({store?.name}). Para consumir, ajustar ou transferir, troque de unidade.
+          {canSwitch ? (
             <button type="button" className="ml-2 font-semibold underline" onClick={() => setStore(lot.store_id)}>Trocar para {s.store?.name}</button>
+          ) : (
+            <span className="ml-1">Você não tem acesso a essa unidade.</span>
           )}
         </InlineAlert>
       )}
@@ -217,29 +223,44 @@ function LotePage() {
           </SectionCard>
 
           <SectionCard title="Ações">
-            <div className="grid gap-2">
-              {can("estoque.movimentar", lot.store_id) && (
-                <Button variant="primary" size="lg" full disabled={!canConsume} onClick={() => setConsume(true)}>
-                  <Icon name="minus" size={18} /> Consumir
-                </Button>
-              )}
-              {canAdjust && (
-                <Button variant="soft" size="lg" full onClick={() => setAdjust(true)} disabled={!hasBalance}>
-                  <Icon name="edit" size={18} /> Ajustar saldo
-                </Button>
-              )}
-            </div>
+            {otherStore ? (
+              <div className="rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 py-2.5 text-sm text-blue-100">
+                Consumo, ajuste, transferência e contagem são feitos na unidade do lote (<strong>{s.store?.name}</strong>).
+                {canSwitch ? (
+                  <Button variant="primary" size="lg" full className="mt-3" onClick={() => setStore(lot.store_id)}>
+                    <Icon name="building" size={18} /> Trocar para {s.store?.name}
+                  </Button>
+                ) : (
+                  <span className="block pt-1">Você não tem acesso a essa unidade.</span>
+                )}
+              </div>
+            ) : (
+              <>
+                <div className="grid gap-2">
+                  {can("estoque.movimentar", lot.store_id) && (
+                    <Button variant="primary" size="lg" full disabled={!canConsume} onClick={() => setConsume(true)}>
+                      <Icon name="minus" size={18} /> Consumir
+                    </Button>
+                  )}
+                  {canAdjust && (
+                    <Button variant="soft" size="lg" full onClick={() => setAdjust(true)} disabled={!hasBalance}>
+                      <Icon name="edit" size={18} /> Ajustar saldo
+                    </Button>
+                  )}
+                </div>
+                <div className="mt-3">
+                  <LotActionLinks lotId={lot.id} productId={s.product.id} compact />
+                </div>
+              </>
+            )}
             <div className="mt-3">
               <LotEventButtons lot={lot} product={product.data} onDone={() => void q.refetch()} />
-            </div>
-            <div className="mt-3">
-              <LotActionLinks lotId={lot.id} productId={s.product.id} compact />
             </div>
           </SectionCard>
         </aside>
       </div>
 
-      {product.data && (
+      {product.data && !otherStore && (
         <>
           <ConsumeDrawer open={consume} onClose={() => setConsume(false)} product={product.data} initialLotId={lot.id} onDone={() => void q.refetch()} />
           <AdjustDrawer open={adjust} onClose={() => setAdjust(false)} product={product.data} initialLotId={lot.id} onDone={() => void q.refetch()} />

@@ -63,8 +63,9 @@ function MovimentacoesPage() {
         .range(pg.range.from, pg.range.to);
       if (type) qb = qb.eq("movement_type", type);
       if (product) qb = qb.eq("product_id", product.id);
-      if (from) qb = qb.gte("created_at", `${from}T00:00:00`);
-      if (to) qb = qb.lt("created_at", `${addDaysISO(to, 1)}T00:00:00`);
+      // limites do dia no fuso do navegador (created_at é timestamptz)
+      if (from) qb = qb.gte("created_at", new Date(`${from}T00:00:00`).toISOString());
+      if (to) qb = qb.lt("created_at", new Date(`${addDaysISO(to, 1)}T00:00:00`).toISOString());
       if (u) qb = qb.ilike("created_by_name", likeTerm(u));
       if (ref) {
         if (isUuid(ref)) qb = qb.or(`reference_id.eq.${ref},lot_id.eq.${ref},id.eq.${ref}`);

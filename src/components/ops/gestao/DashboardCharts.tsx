@@ -41,12 +41,12 @@ export function ChartCard({
 const truncate = (s: string, n = 18) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 const axisMoney = (v: number) => fmtMoney(v).replace(/,00$/, "");
 
-function Tip({ active, payload, label, lines }: { active?: boolean; payload?: { payload: Record<string, unknown> }[]; label?: string; lines: (r: Record<string, unknown>) => { k: string; v: string }[] }) {
+function Tip({ active, payload, label, lines, format }: { active?: boolean; payload?: { payload: Record<string, unknown> }[]; label?: string; lines: (r: Record<string, unknown>) => { k: string; v: string }[]; format?: (label: string) => string }) {
   if (!active || !payload || payload.length === 0) return null;
   const r = payload[0].payload;
   return (
     <div className="rounded-xl border border-[var(--line)] bg-[var(--panel)] px-3 py-2 text-xs shadow-xl">
-      <p className="mb-1 font-semibold text-slate-100">{label ?? String(r.label ?? "")}</p>
+      <p className="mb-1 font-semibold text-slate-100">{(format ?? ((x: string) => x))(String(label ?? r.label ?? ""))}</p>
       {lines(r).map((l) => (
         <p key={l.k} className="text-slate-300">{l.k}: <span className="font-semibold text-slate-100">{l.v}</span></p>
       ))}
@@ -74,7 +74,7 @@ export function LossesByDay({ rows }: { rows: Series["losses_by_day"] }) {
           <CartesianGrid vertical={false} stroke={CHART.grid} strokeDasharray="3 3" />
           <XAxis dataKey="day" tick={AXIS} axisLine={false} tickLine={false} tickFormatter={(v: string) => fmtDateShort(v)} minTickGap={24} />
           <YAxis tick={AXIS} axisLine={false} tickLine={false} width={64} tickFormatter={axisMoney} />
-          <Tooltip cursor={{ stroke: CHART.ink, strokeDasharray: "3 3" }} content={<Tip lines={(r) => [{ k: "Valor", v: fmtMoney(r.value) }, { k: "Quantidade", v: fmtQty(r.quantity) }]} label={undefined} />} labelFormatter={(v) => fmtDate(String(v))} />
+          <Tooltip cursor={{ stroke: CHART.ink, strokeDasharray: "3 3" }} content={<Tip format={fmtDate} lines={(r) => [{ k: "Valor", v: fmtMoney(r.value) }, { k: "Quantidade", v: fmtQty(r.quantity) }]} />} />
           <Area type="monotone" dataKey="value" stroke={CHART.orange} strokeWidth={2} fill="url(#lossFill)" dot={data.length <= 45 ? { r: 3, fill: CHART.orange, strokeWidth: 0 } : false} activeDot={{ r: 5 }} isAnimationActive={false} />
         </AreaChart>
       </ResponsiveContainer>
@@ -115,7 +115,7 @@ export function VBars({ rows, color, xKey, valueKey, isDay, yFormat = "money", l
           <CartesianGrid vertical={false} stroke={CHART.grid} strokeDasharray="3 3" />
           <XAxis dataKey={xKey} tick={AXIS} axisLine={false} tickLine={false} tickFormatter={(v: string) => (isDay ? fmtDateShort(v) : truncate(v, 12))} minTickGap={isDay ? 24 : 8} interval={isDay ? "preserveStartEnd" : 0} angle={!isDay && rows.length > 5 ? -20 : 0} height={!isDay && rows.length > 5 ? 44 : 30} textAnchor={!isDay && rows.length > 5 ? "end" : "middle"} />
           <YAxis tick={AXIS} axisLine={false} tickLine={false} width={64} tickFormatter={(v: number) => (yFormat === "money" ? axisMoney(v) : fmtQty(v))} />
-          <Tooltip cursor={{ fill: "rgba(255,255,255,0.04)" }} content={<Tip lines={lines} />} labelFormatter={(v) => (isDay ? fmtDate(String(v)) : String(v))} />
+          <Tooltip cursor={{ fill: "rgba(255,255,255,0.04)" }} content={<Tip lines={lines} format={isDay ? fmtDate : undefined} />} />
           <Bar dataKey={valueKey} fill={color} radius={[4, 4, 0, 0]} maxBarSize={36} isAnimationActive={false} />
         </BarChart>
       </ResponsiveContainer>

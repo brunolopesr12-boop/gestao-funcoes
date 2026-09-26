@@ -55,7 +55,7 @@ function ProductStockPage() {
       return (res.data ?? []) as Movement[];
     },
   });
-  useRealtimeInvalidate(["stock_items"], [["stock_lots"], ["stock_movements"]]);
+  useRealtimeInvalidate(["stock_items", "stock_lots"], [["stock_items"], ["stock_lots"], ["stock_movements"]]);
 
   const [consume, setConsume] = useState(false);
   const [adjust, setAdjust] = useState(false);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "@/lib/ops/session";
 import { useInvalidate } from "@/lib/ops/query";
 import { callOfflineable } from "@/lib/ops/offline";
@@ -44,10 +44,13 @@ export function ConsumeDrawer({
   const [busy, setBusy] = useState(false);
   const [warning, setWarning] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // a pré-seleção do lote lido acontece uma vez por abertura (não sobrescreve a escolha do funcionário quando a lista recarrega)
+  const preselected = useRef(false);
 
   // reinicia ao abrir
   useEffect(() => {
     if (!open) return;
+    preselected.current = false;
     setRow(null);
     setAuto(!initialLotId);
     setLocation("");
@@ -61,7 +64,8 @@ export function ConsumeDrawer({
 
   // pré-seleciona o lote vindo do QR
   useEffect(() => {
-    if (!open || !initialLotId || !lots.data) return;
+    if (!open || !initialLotId || !lots.data || preselected.current) return;
+    preselected.current = true;
     const found = lots.data.find((l) => l.lot_id === initialLotId);
     if (found) {
       setRow(found);

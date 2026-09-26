@@ -68,7 +68,7 @@ function TransferirPage() {
   const unitCode = (unit && units.data?.find((x) => x.id === unit)?.code) || row?.unit || "";
   const otherStores = useOtherStores();
   const recent = useRecentTransfers(store?.id);
-  useRealtimeInvalidate(["stock_items"], [["transfers"], ["stock_lots"], ["stock_movements"]]);
+  useRealtimeInvalidate(["stock_items", "stock_lots"], [["stock_items"], ["transfers"], ["stock_lots"], ["stock_movements"]]);
 
   const destLocations = useMemo(() => (locations.data ?? []).filter((l) => l.id !== row?.location_id), [locations.data, row?.location_id]);
   const toStoreName = otherStores.find((s) => s.id === toStore)?.name;
