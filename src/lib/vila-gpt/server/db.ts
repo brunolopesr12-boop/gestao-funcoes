@@ -6,6 +6,7 @@
  * que é o padrão do app.
  */
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { supabaseServer } from "@/lib/supabase/server";
 import type { KnowledgeInput } from "../knowledge";
 
 function first(...values: (string | undefined)[]): string {
@@ -58,6 +59,50 @@ export function serverSupabase(): SupabaseClient {
   return client;
 }
 
+/**
+ * Cliente para as rotas do VILA GPT:
+ *  - com SUPABASE_SERVICE_ROLE_KEY: chave de serviço (ignora RLS; as rotas
+ *    restringem por empresa usando o contexto do usuário logado);
+ *  - sem ela: a sessão do próprio usuário (cookie) — o RLS do banco decide.
+ */
+export async function dbClient(): Promise<SupabaseClient> {
+  const { serviceKey } = supabaseEnv();
+  if (serviceKey) return serverSupabase();
+  return supabaseServer();
+}
+
+export type UserContext = {
+  id: string;
+  email: string;
+  name: string;
+  /** empresas onde o usuário é membro ativo */
+  companyIds: string[];
+};
+
+/** Usuário autenticado (sessão em cookie) e suas empresas. Null se não logado. */
+export async function userContext(): Promise<UserContext | null> {
+  try {
+    const sb = await supabaseServer();
+    const { data } = await sb.auth.getUser();
+    if (!data.user) return null;
+    const [{ data: ids }, { data: prof }] = await Promise.all([
+      sb.rpc("ops_member_company_ids"),
+      sb.from("profiles").select("full_name").eq("id", data.user.id).maybeSingle(),
+    ]);
+    const list = Array.isArray(ids) ? (ids as unknown[]).map((r) => (typeof r === "string" ? r : (r as { ops_member_company_ids?: string }).ops_member_company_ids ?? "")).filter(Boolean) : [];
+    const name = (prof as { full_name?: string } | null)?.full_name || (data.user.user_metadata?.full_name as string) || data.user.email || "";
+    return { id: data.user.id, email: data.user.email ?? "", name, companyIds: list };
+  } catch {
+    return null;
+  }
+}
+
+/** Escolhe a empresa do pedido: precisa ser uma das empresas do usuário. */
+export function resolveCompany(ctx: UserContext, requested: string | null): { companyId: string | null; ok: boolean } {
+  if (requested) return { companyId: requested, ok: ctx.companyIds.includes(requested) };
+  return { companyId: ctx.companyIds[0] ?? null, ok: ctx.companyIds.length > 0 };
+}
+
 /* ------------------------------------------------------------------ */
 /* Tabela ainda não criada                                             */
 /* ------------------------------------------------------------------ */
@@ -100,7 +145,7 @@ export async function selectAll<T = Record<string, unknown>>(
   table: string,
   opts: SelectAllOptions = {},
 ): Promise<T[]> {
-  const sb = serverSupabase();
+  const sb = await dbClient();
   const max = opts.max ?? 100_000;
   const out: T[] = [];
   for (let from = 0; from < max; from += PAGE) {
@@ -141,7 +186,7 @@ const SNAPSHOT_TABLES = [
 ] as const satisfies readonly (keyof KnowledgeInput)[];
 
 const SNAPSHOT_TTL_MS = 15_000;
-let cached: { at: number; data: Promise<KnowledgeInput> } | null = null;
+const cache = new Map<string, { at: number; data: Promise<KnowledgeInput> }>();
 
 /** tabelas novas do VILA GPT: ausentes = schema ainda não aplicado */
 const OPTIONAL_TABLES = new Set<string>(["kb_articles"]);
@@ -158,20 +203,48 @@ async function fetchSnapshot(): Promise<KnowledgeInput> {
   return out as unknown as KnowledgeInput;
 }
 
-/** Carrega tudo (com cache curto, para não bater no banco a cada pergunta). */
-export function loadSnapshot(): Promise<KnowledgeInput> {
+/**
+ * Carrega tudo (com cache curto, para não bater no banco a cada pergunta).
+ * Com chave de serviço o cache é global; com a sessão do usuário, é por usuário
+ * (o RLS já limita o que ele enxerga).
+ */
+export function loadSnapshot(cacheKey = "service"): Promise<KnowledgeInput> {
+  const key = isServiceRoleConfigured() ? "service" : `user:${cacheKey}`;
   const now = Date.now();
-  if (cached && now - cached.at < SNAPSHOT_TTL_MS) return cached.data;
+  const hit = cache.get(key);
+  if (hit && now - hit.at < SNAPSHOT_TTL_MS) return hit.data;
   const data = fetchSnapshot().catch((e) => {
-    cached = null;
+    cache.delete(key);
     throw e;
   });
-  cached = { at: now, data };
+  cache.set(key, { at: now, data });
+  if (cache.size > 200) {
+    for (const [k, v] of cache) if (now - v.at >= SNAPSHOT_TTL_MS) cache.delete(k);
+  }
   return data;
 }
 
 export function invalidateSnapshot(): void {
-  cached = null;
+  cache.clear();
+}
+
+/** Restringe o snapshot às empresas do usuário (necessário com a chave de serviço). */
+export function restrictSnapshot(snapshot: KnowledgeInput, companyIds: string[]): KnowledgeInput {
+  const allow = new Set(companyIds);
+  const roleIds = new Set(snapshot.roles.filter((r) => allow.has(r.company_id)).map((r) => r.id));
+  const employeeIds = new Set(snapshot.employees.filter((e) => allow.has(e.company_id)).map((e) => e.id));
+  return {
+    ...snapshot,
+    companies: snapshot.companies.filter((c) => allow.has(c.id)),
+    roles: snapshot.roles.filter((r) => allow.has(r.company_id)),
+    competencies: snapshot.competencies.filter((c) => roleIds.has(c.role_id)),
+    checklist_items: snapshot.checklist_items.filter((c) => roleIds.has(c.role_id)),
+    processes: snapshot.processes.filter((p) => roleIds.has(p.role_id)),
+    employees: snapshot.employees.filter((e) => allow.has(e.company_id)),
+    employee_roles: snapshot.employee_roles.filter((l) => employeeIds.has(l.employee_id)),
+    training_steps: snapshot.training_steps.filter((t) => employeeIds.has(t.employee_id)),
+    kb_articles: snapshot.kb_articles.filter((a) => a.company_id === null || allow.has(a.company_id)),
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -185,7 +258,7 @@ export async function countSince(
   eq: [string, string | boolean][] = [],
 ): Promise<number | null> {
   try {
-    let q = serverSupabase().from(table).select("id", { count: "exact", head: true }).gte("created_at", sinceIso);
+    let q = (await dbClient()).from(table).select("id", { count: "exact", head: true }).gte("created_at", sinceIso);
     for (const [col, val] of eq) q = q.eq(col, val);
     const { count, error } = await q;
     if (error) throw new Error(error.message);

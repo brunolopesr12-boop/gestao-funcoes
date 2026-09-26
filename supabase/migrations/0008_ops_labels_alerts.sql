@@ -132,7 +132,7 @@ create or replace function public.ops_refresh_alerts(p_store uuid)
 returns jsonb language plpgsql security definer set search_path = public as $fn$
 declare v_company uuid; r record; v_days_warn int; v_n int := 0; v_key text; v_level text; v_sev text; v_unit text;
 begin
-  if not public.ops_has_permission(p_store, 'alertas.ver') and current_user not in ('postgres') then
+  if not public.ops_has_permission(p_store, 'alertas.ver') and not public.ops_is_service_role() then
     raise exception 'Sem permissão.' using errcode = '42501';
   end if;
   v_company := public.ops_store_company(p_store);

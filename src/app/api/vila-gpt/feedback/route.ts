@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { clientIp, isDbConfigured, isUuid, rateLimited, serverSupabase } from "@/lib/vila-gpt/server/db";
+import { clientIp, dbClient, isDbConfigured, isUuid, rateLimited, userContext } from "@/lib/vila-gpt/server/db";
 
 export const dynamic = "force-dynamic";
 
@@ -20,10 +20,13 @@ export async function POST(req: Request) {
   if (!isUuid(body.id) || typeof body.helpful !== "boolean") {
     return NextResponse.json({ erro: "Pedido inválido." }, { status: 400 });
   }
-  const { error } = await serverSupabase()
+  const ctx = await userContext();
+  if (!ctx) return NextResponse.json({ erro: "Faça login." }, { status: 401 });
+  const { error } = await (await dbClient())
     .from("gpt_questions")
     .update({ helpful: body.helpful })
-    .eq("id", body.id);
+    .eq("id", body.id)
+    .eq("employee_id", ctx.id);
   if (error) {
     console.error("[vila-gpt] feedback:", error.message);
     return NextResponse.json({ erro: "Não foi possível registrar o feedback." }, { status: 502 });

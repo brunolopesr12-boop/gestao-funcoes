@@ -1,175 +1,139 @@
 # Publicar o aplicativo — GitHub + Vercel + Supabase
 
-Siga na ordem. Leva cerca de 15 minutos. Só existe **um** passo fora da Vercel:
-colar o arquivo do banco no Supabase (passo 4).
+Siga na ordem. Leva cerca de 20 minutos. Fora da Vercel só existem dois passos:
+colar o arquivo do banco no Supabase (passo 4) e conferir a configuração de
+login (passo 5).
 
 ---
 
 ## 1. Enviar o projeto para o GitHub
 
-O projeto já está com o Git iniciado e o primeiro commit feito.
-
 **a)** Crie a conta em <https://github.com> (se ainda não tiver).
 
-**b)** Crie um repositório novo em <https://github.com/new>:
+**b)** Crie um repositório novo em <https://github.com/new> (`gestao-funcoes`,
+**Private**, sem README/.gitignore/license).
 
-- **Repository name:** `gestao-funcoes`
-- **Private** (recomendado — é dado da sua equipe)
-- **Não** marque nada em "Initialize this repository with" (sem README, sem
-  .gitignore, sem license). O repositório precisa nascer vazio.
-- **Create repository**
-
-**c)** Na tela que aparecer, copie o endereço do repositório (algo como
-`https://github.com/SEU-USUARIO/gestao-funcoes.git`) e rode aqui na pasta do
-projeto, trocando `SEU-USUARIO`:
+**c)** Na pasta do projeto:
 
 ```bash
 git remote add origin https://github.com/SEU-USUARIO/gestao-funcoes.git
-```
-
-```bash
 git branch -M main && git push -u origin main
 ```
-
-Se pedir login, use seu usuário do GitHub e um **Personal Access Token** como
-senha (GitHub → Settings → Developer settings → Personal access tokens → Tokens
-(classic) → Generate new token → marque `repo`). O Windows costuma abrir uma
-janela do navegador para autorizar, o que é mais simples.
 
 ---
 
 ## 2. Importar na Vercel
 
-**a)** Entre em <https://vercel.com> e faça login **com a conta do GitHub**.
+**a)** Entre em <https://vercel.com> com a conta do GitHub → **Add New → Project**
+→ **Import** em `gestao-funcoes` → **Deploy** (não mude nada).
 
-**b)** **Add New → Project**.
-
-**c)** Encontre `gestao-funcoes` na lista e clique em **Import**.
-(Se o repositório não aparecer: **Adjust GitHub App Permissions** e libere o acesso.)
-
-**d)** Não mude nada. Framework: Next.js. Clique em **Deploy**.
-
-O primeiro deploy vai funcionar, mas o app vai abrir na tela
-**"Falta conectar o banco de dados"** — é o esperado, ainda não existe banco.
+O primeiro deploy abre na tela **"Falta conectar o banco de dados"** — esperado.
 
 ---
 
 ## 3. Criar o banco pela própria Vercel
 
-**a)** No projeto, abra a aba **Storage**.
-(Em algumas contas fica em **Integrations → Browse Marketplace**.)
+Aba **Storage** → **Create Database** → **Supabase** → plano **Free**, região
+**South America (São Paulo)** → **Connect to Project**.
 
-**b)** **Create Database** → escolha **Supabase** → **Continue**.
-
-**c)** Aceite os termos, escolha o plano **Free**, dê um nome
-(ex.: `gestao-funcoes`) e a região **South America (São Paulo)** se estiver
-disponível — fica mais rápido no Brasil.
-
-**d)** **Connect to Project** / **Create**.
-
-A Vercel cria o projeto Supabase e **adiciona as variáveis de ambiente
-automaticamente** no seu projeto. Você não precisa copiar chave nenhuma.
-
-> O app aceita os dois formatos de nome que a integração pode usar
-> (`NEXT_PUBLIC_SUPABASE_*` ou `SUPABASE_*`), então funciona de qualquer jeito.
+A Vercel cria o projeto Supabase e injeta as variáveis de ambiente sozinha
+(`NEXT_PUBLIC_SUPABASE_URL` / `..._ANON_KEY`, com qualquer nome que a integração
+usar — o app aceita todos).
 
 ---
 
 ## 4. Criar as tabelas (único passo no Supabase)
 
-A Vercel cria o banco **vazio**. As tabelas vêm do arquivo do projeto.
+**a)** Storage → clique no banco → **Open in Supabase** → **SQL Editor → New query**.
 
-**a)** Ainda na aba **Storage** da Vercel, clique no banco criado e depois em
-**Open in Supabase** (ou entre em <https://supabase.com/dashboard> — o projeto
-já vai estar lá).
+**b)** Abra o arquivo [`supabase/install.sql`](supabase/install.sql) deste projeto,
+copie **tudo** e cole no editor → **Run**.
 
-**b)** No menu da esquerda: **SQL Editor** → **New query**.
+Isso cria, de uma vez: o módulo de funções/treinamentos, o VILA GPT e todo o
+sistema de gestão de cozinha (mais de 60 tabelas, views, funções, permissões
+por perfil, RLS, auditoria imutável, bucket de fotos, realtime) e já cadastra a
+empresa **Vila Rica** com uma unidade, unidades de medida, categorias, motivos
+de perda, modelos de etiqueta e checklists iniciais — tudo editável.
+**Pode rodar de novo sem medo**: o arquivo é idempotente e nunca apaga dados.
 
-**c)** Abra o arquivo [`supabase/schema.sql`](supabase/schema.sql) deste projeto,
-copie **tudo** (Ctrl+A, Ctrl+C) e cole no editor.
-
-**d)** Clique em **Run** (ou Ctrl+Enter).
-
-Deve aparecer *Success. No rows returned*. Isso cria:
-
-- as 12 tabelas (incluindo as duas do VILA GPT),
-- as permissões de acesso,
-- a **sincronização em tempo real** entre os aparelhos,
-- e já cadastra **Vila Rica** e **Sr. Strogonoff** com as funções e os processos
-  do Montador de pedidos.
-
-Pode rodar de novo sem medo — o arquivo não duplica nada.
+> Se você já tinha o `schema.sql` antigo aplicado, rode o `install.sql` mesmo
+> assim: ele complementa sem apagar nada.
 
 ---
 
-## 5. Redeploy
+## 5. Login (Supabase Auth)
 
-Volte na Vercel → aba **Deployments** → no deploy mais recente clique nos três
-pontinhos **⋯** → **Redeploy** → **Redeploy**.
+No painel do Supabase → **Authentication → Providers → Email**:
 
-Isso é necessário porque as variáveis de ambiente entram no app na hora da build.
-
-Quando terminar, abra o endereço (`gestao-funcoes.vercel.app`). As duas empresas
-devem aparecer na tela inicial. **Pronto.**
-
----
-
-## 5b. Ligar o VILA GPT (assistente dos funcionários)
-
-O VILA GPT já vem no app. Faltam só duas variáveis, em **Settings → Environment
-Variables** do projeto na Vercel:
-
-| Variável | Valor |
-|---|---|
-| `VILA_GPT_ADMIN_PIN` | A senha que só a administração vai saber (mín. 6 caracteres). Sem ela ninguém altera a base oficial. |
-| `VILA_GPT_SESSION_SECRET` | Recomendado: um texto longo e aleatório (ex.: 40 letras e números), para assinar o cookie de quem entrou na administração. |
-| `ANTHROPIC_API_KEY` | Chave da API da Anthropic (<https://console.anthropic.com>). Opcional: sem ela o VILA GPT mostra o procedimento oficial mais parecido em vez de redigir a resposta. |
-
-Depois faça o **Redeploy** de novo (passo 5). O `schema.sql` do passo 4 já cria as
-tabelas do VILA GPT.
-
-Para começar: abra **VILA GPT → ⚙️ → entre com a senha → + Cadastrar informação
-oficial** e cadastre os primeiros procedimentos (fechamento de caixa, abertura,
-o que fazer quando o cliente reclama…). As funções, processos e checklists já
-cadastrados entram automaticamente.
-
-## 6. Colocar na tela do celular
-
-Abra o endereço no celular e:
-
-- **Android / Chrome:** menu ⋮ → *Adicionar à tela inicial*
-- **iPhone / Safari:** botão compartilhar → *Adicionar à Tela de Início*
-
-O app abre em tela cheia, sem barra de navegador, igual a um aplicativo instalado.
-
-Faça isso em todos os aparelhos que forem usar. O que você marcar em um aparece
-nos outros em segundos — a bolinha ao lado do seu nome, no topo, fica **verde**
-quando a sincronização em tempo real está ligada.
+- Deixe **Email** ativado.
+- **Confirm email**: recomendamos **desligar** para uso interno (os usuários
+  entram na hora com a senha que o administrador definir). Se preferir manter,
+  configure o remetente em Authentication → SMTP e peça para cada pessoa
+  confirmar o e-mail.
+- Em **Authentication → URL Configuration**, coloque o endereço do app
+  (`https://gestao-funcoes.vercel.app`) em **Site URL** e adicione
+  `https://gestao-funcoes.vercel.app/auth/callback` em **Redirect URLs**
+  (necessário para "esqueci a senha").
 
 ---
 
-## 7. Primeiro uso
+## 6. Variáveis de ambiente (Vercel → Settings → Environment Variables)
 
-1. Toque no botão do seu nome (canto superior direito) e informe **quem é você**.
-   Esse nome fica gravado em toda etapa de treinamento que você marcar.
-2. Entre em **Sr. Strogonoff → Funcionários → + Novo funcionário** e cadastre a
-   equipe, escolhendo a **função atual** de cada um.
-3. Em **Funções**, abra cada função e cadastre os **processos** (o que a pessoa
-   precisa saber fazer). Só o Montador de pedidos já vem preenchido.
-4. No dia a dia, use **O que preciso treinar?** — é a tela feita para usar com o
-   celular na mão, marcando as etapas na hora.
+| Variável | Obrigatória? | Para quê |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Sim | Injetadas pela integração (passo 3). |
+| `SUPABASE_SERVICE_ROLE_KEY` | **Recomendada** | Chave *service_role* (Supabase → Project Settings → API). Permite criar usuários com senha na tela **Usuários**, a varredura diária de alertas (cron) e a API de integrações. Nunca vai para o navegador. |
+| `CRON_SECRET` | Recomendada | Qualquer texto longo; protege as rotas do cron. |
+| `NEXT_PUBLIC_ALLOW_SIGNUP` | Não | `true` libera "criar conta" para qualquer pessoa. Padrão: só o primeiro administrador e e-mails convidados. |
+| `VILA_GPT_ADMIN_PIN` | Para administrar o VILA GPT | Senha da administração da base de conhecimento (mín. 6 caracteres). |
+| `VILA_GPT_SESSION_SECRET` | Recomendada | Texto aleatório que assina o cookie da administração do VILA GPT. |
+| `ANTHROPIC_API_KEY` | Opcional | Liga a IA do VILA GPT. Sem ela: modo busca. |
+
+Depois de salvar variáveis: **Deployments → ⋯ → Redeploy**.
+
+---
+
+## 7. Primeiro acesso
+
+1. Abra o endereço do app. A tela de login avisa **"Primeiro acesso"**: clique
+   em **Criar conta**, informe nome, e-mail e senha. Esse primeiro usuário vira
+   **administrador** da Vila Rica (e das demais empresas já cadastradas).
+2. Vá em **Configurações** e confira a unidade (nome, endereço), os locais de
+   estoque (Estoque seco, Geladeira, Freezer, Cozinha) e os equipamentos de
+   temperatura.
+3. Em **Usuários**, cadastre a equipe: nome, e-mail, senha inicial, perfil
+   (Gerente, Estoquista, Cozinha, Auditor ou Funcionário) e unidades liberadas.
+   Sem a chave de serviço, use **Convidar por e-mail**: a pessoa cria a conta em
+   `/login` com aquele e-mail.
+4. Cadastre **Produtos** (com unidade de compra e conversão), **Fornecedores** e
+   as **Fichas técnicas**. Registre o estoque inicial em **Estoque → Entrada
+   manual** ou faça o primeiro **Recebimento**.
+5. No celular, abra o endereço e use **Adicionar à tela de início**: o app abre
+   em tela cheia, com os atalhos Receber, Produzir, Estoque, Contar, Perda,
+   Etiquetas, Checklists, Temperatura e Ler QR.
+
+---
+
+## Cron (varredura diária)
+
+O `vercel.json` já agenda:
+
+- `/api/keepalive` (12:00 UTC) — mantém o banco gratuito acordado;
+- `/api/ops/cron/alerts` (06:00 UTC) — gera os checklists do dia e atualiza os
+  alertas de validade, estoque mínimo, checklists atrasados, produções e tarefas
+  (requer `SUPABASE_SERVICE_ROLE_KEY`). Sem o cron, a mesma varredura roda ao
+  abrir o Painel ou a Central de alertas.
 
 ---
 
 ## Atualizar o app depois
 
-Qualquer mudança no código é só:
-
 ```bash
 git add -A && git commit -m "descrição da mudança" && git push
 ```
 
-A Vercel refaz o deploy sozinha em ~1 minuto.
+A Vercel refaz o deploy sozinha. Se a atualização trouxer mudanças de banco,
+rode o `supabase/install.sql` de novo no SQL Editor (é seguro).
 
 ---
 
@@ -177,10 +141,12 @@ A Vercel refaz o deploy sozinha em ~1 minuto.
 
 | Sintoma | O que fazer |
 |---|---|
-| Tela "Falta conectar o banco de dados" | As variáveis não chegaram na build. Confira em **Settings → Environment Variables** se existe `NEXT_PUBLIC_SUPABASE_URL` (ou `SUPABASE_URL`) e refaça o **Redeploy** (passo 5). |
-| "Não consegui carregar os dados" com erro de tabela | O passo 4 não rodou. Volte ao SQL Editor e rode o `schema.sql` inteiro. |
-| A bolinha do topo fica cinza | A sincronização em tempo real não conectou. Rode o `schema.sql` de novo (o bloco final liga o realtime) e recarregue a página. Mesmo cinza o app funciona; ele recarrega os dados ao voltar para a tela. |
-| Empresas não aparecem | Supabase → **Table Editor → companies**. Se estiver vazia, rode o `schema.sql` de novo. |
-| VILA GPT: "Falta definir a senha de administrador" | Adicione `VILA_GPT_ADMIN_PIN` nas variáveis da Vercel e refaça o Redeploy. |
-| VILA GPT responde "IA indisponível" | Confira `ANTHROPIC_API_KEY` e o saldo/limites da conta na Anthropic. Enquanto isso ele mostra a fonte oficial mais parecida. |
-| VILA GPT: "Não consegui ler a base" | O `schema.sql` mais novo não rodou (tabelas `kb_articles`/`gpt_questions`). Rode-o de novo no SQL Editor. |
+| "Falta conectar o banco de dados" | Variáveis não chegaram na build. Confira em Settings → Environment Variables e faça **Redeploy**. |
+| "Não consegui carregar sua sessão" com erro de tabela/função | O `install.sql` não rodou (ou é antigo). Rode-o inteiro no SQL Editor. |
+| Login diz "Confirme seu e-mail" | Desligue *Confirm email* em Authentication → Providers → Email, ou confirme o usuário em Authentication → Users. |
+| "Sua conta ainda não foi liberada" | Um administrador precisa cadastrar/convidar esse e-mail em **Usuários** (ou, se é a primeira empresa, use **Criar minha empresa**). |
+| Não consigo criar usuário com senha | Falta `SUPABASE_SERVICE_ROLE_KEY`. Enquanto isso use **Convidar por e-mail**. |
+| Banco pausado (plano gratuito) | Supabase → **Resume project**. Nada é perdido. |
+| Fotos não sobem | Confira se o bucket `ops-fotos` existe (Storage). O `install.sql` cria; se não, crie um bucket público com esse nome. |
+| Etiqueta sai fora do tamanho | Na impressão, escolha o tamanho do papel igual ao do modelo (ex.: 60×40 mm) e margens zero; para impressoras Zebra use **Baixar ZPL**. |
+| VILA GPT "Não consegui ler a base" | Rode o `install.sql` e confira `VILA_GPT_ADMIN_PIN`. |

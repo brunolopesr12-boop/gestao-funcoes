@@ -13,11 +13,11 @@ import {
 import {
   clientIp,
   countSince,
+  dbClient,
   isDbConfigured,
   isServiceRoleConfigured,
   newId,
   rateLimited,
-  serverSupabase,
 } from "@/lib/vila-gpt/server/db";
 
 export const dynamic = "force-dynamic";
@@ -57,7 +57,7 @@ export async function GET(req: Request) {
 async function recordAttempt(ip: string, ok: boolean) {
   if (!isDbConfigured()) return;
   try {
-    await serverSupabase().from("gpt_login_attempts").insert({
+    await (await dbClient()).from("gpt_login_attempts").insert({
       id: newId(),
       ip: ip.slice(0, 64),
       ok,

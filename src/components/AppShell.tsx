@@ -35,6 +35,16 @@ export function AppShell({
     <div className="mx-auto min-h-dvh w-full max-w-3xl">
       <header className="sticky top-0 z-30 border-b border-[var(--line)] bg-[#0b1020]/85 backdrop-blur-xl">
         <div className="flex items-center gap-3 px-4 py-3">
+          {!backHref && (
+            <Link
+              href="/"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[var(--accent)] text-base font-black text-white active:scale-95"
+              aria-label="Sistema de cozinha"
+              title="Voltar ao sistema"
+            >
+              V
+            </Link>
+          )}
           {backHref ? (
             <Link
               href={backHref}

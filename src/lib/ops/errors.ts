@@ -14,7 +14,7 @@ type Raw = { message?: string; code?: string; details?: string; hint?: string } 
 
 export function isNetworkError(e: Raw): boolean {
   const msg = typeof e === "string" ? e : e && "message" in e ? String(e.message ?? "") : "";
-  if (typeof navigator !== "undefined" && !navigator.onLine) return true;
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return true;
   return /failed to fetch|network|fetch failed|load failed|ERR_INTERNET|timeout|ECONN/i.test(msg);
 }
 

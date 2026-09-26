@@ -160,10 +160,23 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    let saved = "";
     try {
-      setTrainerState(window.localStorage.getItem(TRAINER_STORAGE_KEY) ?? "");
+      saved = window.localStorage.getItem(TRAINER_STORAGE_KEY) ?? "";
     } catch {
       /* ignora */
+    }
+    setTrainerState(saved);
+    // sem nome salvo: usa o nome do usuário logado
+    if (!saved && isSupabaseConfigured) {
+      void supabase()
+        .auth.getUser()
+        .then(async ({ data }) => {
+          if (!data.user) return;
+          const { data: p } = await supabase().from("profiles").select("full_name").eq("id", data.user.id).maybeSingle();
+          const name = (p as { full_name?: string } | null)?.full_name || (data.user.user_metadata?.full_name as string) || "";
+          if (name) setTrainerState(name);
+        });
     }
   }, []);
 
@@ -428,12 +441,20 @@ function createActions(deps: ActionDeps) {
         created_at: now(),
         updated_at: now(),
       };
-      const ok = await insert("companies", row);
-      if (ok) {
-        await log({ company_id: row.id, entity: "empresa", entity_name: row.name, action: "criou" });
-        notify("Empresa criada");
+      // a criação passa pela função do banco: quem cria vira administrador e
+      // a empresa nasce com unidade, locais de estoque e padrões
+      const { data: createdId, error } = await supabase().rpc("ops_create_company", {
+        p_name: row.name, p_emoji: row.emoji, p_color: row.color, p_store_name: "Matriz", p_notes: row.notes,
+      });
+      if (error || !createdId) {
+        notify(`Erro ao criar empresa: ${error?.message ?? "sem retorno"}`, "erro");
+        return null;
       }
-      return ok ? row : null;
+      row.id = createdId as string;
+      applyLocal("companies", row);
+      await refresh();
+      notify("Empresa criada");
+      return row;
     },
 
     async updateCompany(id: string, patch: Partial<Company>) {

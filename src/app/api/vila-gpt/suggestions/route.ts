@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { frequentTopics } from "@/lib/vila-gpt/analytics";
 import { buildKnowledge } from "@/lib/vila-gpt/knowledge";
-import { isDbConfigured, isUuid, loadSnapshot, selectAll } from "@/lib/vila-gpt/server/db";
+import { isDbConfigured, isServiceRoleConfigured, isUuid, loadSnapshot, resolveCompany, restrictSnapshot, selectAll, userContext } from "@/lib/vila-gpt/server/db";
 import type { GptQuestion } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -14,17 +14,23 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
   if (!isDbConfigured()) return NextResponse.json({ frequent: [] });
   const url = new URL(req.url);
-  const companyId = url.searchParams.get("company_id");
+  const ctx = await userContext();
+  if (!ctx) return NextResponse.json({ frequent: [] });
+  const resolved = resolveCompany(ctx, isUuid(url.searchParams.get("company_id")) ? url.searchParams.get("company_id") : null);
+  if (!resolved.ok) return NextResponse.json({ frequent: [] });
+  const companyId = resolved.companyId;
   try {
-    const [rows, snapshot] = await Promise.all([
+    let [rows, snapshot] = await Promise.all([
       selectAll<GptQuestion>("gpt_questions", {
-        eq: [["found", true], ...(isUuid(companyId) ? [["company_id", companyId] as [string, string]] : [])],
+        eq: [["found", true], ...(companyId ? [["company_id", companyId] as [string, string]] : [])],
         order: { column: "created_at", ascending: false },
         max: 300,
       }),
-      loadSnapshot(),
+      loadSnapshot(ctx.id),
     ]);
-    const docs = buildKnowledge(snapshot, { companyId: isUuid(companyId) ? companyId : null });
+    if (isServiceRoleConfigured()) snapshot = restrictSnapshot(snapshot, ctx.companyIds);
+    rows = rows.filter((r) => !r.company_id || ctx.companyIds.includes(r.company_id));
+    const docs = buildKnowledge(snapshot, { companyId });
     const byId = new Map(docs.map((d) => [d.id, d]));
     const frequent: string[] = [];
     for (const t of frequentTopics(rows, { limit: 12 })) {

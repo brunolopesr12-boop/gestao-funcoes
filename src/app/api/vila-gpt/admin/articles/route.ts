@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 import { isAdmin } from "@/lib/vila-gpt/server/auth";
 import {
+  dbClient,
   invalidateSnapshot,
   isDbConfigured,
   isMissingTable,
   isUuid,
   newId,
   SCHEMA_HINT,
-  serverSupabase,
+  userContext,
+  type UserContext,
 } from "@/lib/vila-gpt/server/db";
 import { KB_KINDS, type KbArticle, type KbKind } from "@/lib/types";
 
@@ -46,14 +48,21 @@ function fields(input: Input, partial: boolean) {
   return out;
 }
 
-function guard(req: Request) {
+async function guard(req: Request): Promise<{ denied: NextResponse | null; ctx: UserContext | null }> {
   if (!isDbConfigured()) {
-    return NextResponse.json({ erro: "Banco de dados não configurado." }, { status: 500 });
+    return { denied: NextResponse.json({ erro: "Banco de dados não configurado." }, { status: 500 }), ctx: null };
   }
   if (!isAdmin(req)) {
-    return NextResponse.json({ erro: "Acesso restrito a administradores." }, { status: 401 });
+    return { denied: NextResponse.json({ erro: "Acesso restrito a administradores." }, { status: 401 }), ctx: null };
   }
-  return null;
+  const ctx = await userContext();
+  if (!ctx) return { denied: NextResponse.json({ erro: "Faça login." }, { status: 401 }), ctx: null };
+  return { denied: null, ctx };
+}
+
+/** Artigo de empresa: só das empresas do usuário (global = null é permitido). */
+function companyAllowed(ctx: UserContext, companyId: string | null | undefined): boolean {
+  return !companyId || ctx.companyIds.includes(companyId);
 }
 
 async function readJson(req: Request): Promise<Input | null> {
@@ -73,7 +82,7 @@ async function logActivity(entry: {
   detail?: string;
 }) {
   try {
-    await serverSupabase().from("activity_log").insert({
+    await (await dbClient()).from("activity_log").insert({
       id: newId(),
       company_id: entry.company_id,
       entity: "base de conhecimento",
@@ -90,12 +99,16 @@ async function logActivity(entry: {
 
 /** Criar artigo. */
 export async function POST(req: Request) {
-  const denied = guard(req);
+  const { denied, ctx } = await guard(req);
   if (denied) return denied;
+  if (!ctx) return NextResponse.json({ erro: "Faça login." }, { status: 401 });
   const input = await readJson(req);
   if (!input) return NextResponse.json({ erro: "Pedido inválido." }, { status: 400 });
 
   const f = fields(input, false);
+  if (!companyAllowed(ctx, f.company_id)) {
+    return NextResponse.json({ erro: "Você não tem acesso a esta empresa." }, { status: 403 });
+  }
   if (!f.title) return NextResponse.json({ erro: "Informe o título." }, { status: 400 });
   if (!f.content && !f.question) {
     return NextResponse.json({ erro: "Informe o conteúdo." }, { status: 400 });
@@ -116,7 +129,7 @@ export async function POST(req: Request) {
     created_at: now,
     updated_at: now,
   };
-  const { error } = await serverSupabase().from("kb_articles").insert(row);
+  const { error } = await (await dbClient()).from("kb_articles").insert(row);
   if (error) {
     console.error("[vila-gpt] criar informação:", error.message);
     if (isMissingTable(error)) return NextResponse.json({ erro: SCHEMA_HINT }, { status: 503 });
@@ -135,8 +148,9 @@ export async function POST(req: Request) {
 
 /** Editar artigo. */
 export async function PUT(req: Request) {
-  const denied = guard(req);
+  const { denied, ctx } = await guard(req);
   if (denied) return denied;
+  if (!ctx) return NextResponse.json({ erro: "Faça login." }, { status: 401 });
   const input = await readJson(req);
   if (!input || !isUuid(input.id)) {
     return NextResponse.json({ erro: "Pedido inválido." }, { status: 400 });
@@ -146,9 +160,12 @@ export async function PUT(req: Request) {
     return NextResponse.json({ erro: "Informe o título." }, { status: 400 });
   }
   patch.updated_at = new Date().toISOString();
-  const sb = serverSupabase();
+  const sb = await dbClient();
   const { data: before } = await sb.from("kb_articles").select("*").eq("id", input.id).maybeSingle();
   if (!before) return NextResponse.json({ erro: "Informação não encontrada." }, { status: 404 });
+  if (!companyAllowed(ctx, (before as KbArticle).company_id) || !companyAllowed(ctx, patch.company_id)) {
+    return NextResponse.json({ erro: "Você não tem acesso a esta empresa." }, { status: 403 });
+  }
   const { error } = await sb.from("kb_articles").update(patch).eq("id", input.id);
   if (error) {
     console.error("[vila-gpt] editar informação:", error.message);
@@ -168,15 +185,19 @@ export async function PUT(req: Request) {
 
 /** Excluir artigo. */
 export async function DELETE(req: Request) {
-  const denied = guard(req);
+  const { denied, ctx } = await guard(req);
   if (denied) return denied;
+  if (!ctx) return NextResponse.json({ erro: "Faça login." }, { status: 401 });
   const url = new URL(req.url);
   const id = url.searchParams.get("id");
   const actor = url.searchParams.get("by") ?? "";
   if (!isUuid(id)) return NextResponse.json({ erro: "Pedido inválido." }, { status: 400 });
 
-  const sb = serverSupabase();
+  const sb = await dbClient();
   const { data: before } = await sb.from("kb_articles").select("*").eq("id", id).maybeSingle();
+  if (before && !companyAllowed(ctx, (before as KbArticle).company_id)) {
+    return NextResponse.json({ erro: "Você não tem acesso a esta empresa." }, { status: 403 });
+  }
   const { error } = await sb.from("kb_articles").delete().eq("id", id);
   if (error) {
     console.error("[vila-gpt] excluir informação:", error.message);

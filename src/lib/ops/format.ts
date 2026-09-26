@@ -7,19 +7,20 @@ const dateOnly = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-di
 const dateShort = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit" });
 const timeOnly = new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
+/** Número a partir de texto pt-BR ou en: "1.234,5" → 1234.5 ; "2,5" → 2.5 ; "2.5" → 2.5 */
 export function num(v: unknown): number {
   if (v === null || v === undefined || v === "") return 0;
-  const n = typeof v === "number" ? v : Number(String(v).replace(/\./g, "").replace(",", "."));
+  if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+  const s = String(v).trim();
+  if (!s) return 0;
+  // com vírgula: pontos são separadores de milhar; sem vírgula: ponto é decimal
+  const normalized = s.includes(",") ? s.replace(/\./g, "").replace(",", ".") : s;
+  const n = Number(normalized);
   return Number.isFinite(n) ? n : 0;
 }
 
-/** "1.234,5" → 1234.5 ; "2,5" → 2.5 ; "2.5" → 2.5 */
 export function parseDecimal(s: string): number {
-  const t = s.trim();
-  if (!t) return 0;
-  if (t.includes(",")) return num(t.replace(/\./g, "").replace(",", "."));
-  const n = Number(t);
-  return Number.isFinite(n) ? n : 0;
+  return num(s);
 }
 
 export function fmtQty(v: unknown, unit?: string | null, decimals?: number): string {

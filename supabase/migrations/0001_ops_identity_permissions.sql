@@ -335,10 +335,17 @@ language sql stable security definer set search_path = public as $$
     )
 $$;
 
+-- chamadas do servidor com a chave de serviço (cron, integrações)
+create or replace function public.ops_is_service_role()
+returns boolean language sql stable as $$
+  select coalesce(auth.role(), '') = 'service_role' or current_user = 'service_role'
+$$;
+
 -- exige permissão dentro das funções de negócio
 create or replace function public.ops_require(p_store uuid, p_perm text)
 returns void language plpgsql stable security definer set search_path = public as $fn$
 begin
+  if public.ops_is_service_role() then return; end if;
   if auth.uid() is null then
     raise exception 'Você precisa estar autenticado.' using errcode = '28000';
   end if;
@@ -351,6 +358,7 @@ $fn$;
 create or replace function public.ops_require_company(p_company uuid, p_perm text)
 returns void language plpgsql stable security definer set search_path = public as $fn$
 begin
+  if public.ops_is_service_role() then return; end if;
   if auth.uid() is null then
     raise exception 'Você precisa estar autenticado.' using errcode = '28000';
   end if;
