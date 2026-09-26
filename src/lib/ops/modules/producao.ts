@@ -6,6 +6,7 @@
 
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import { toOpsError } from "@/lib/ops/errors";
 import { rpc, unwrap } from "@/lib/ops/rpc";
 import { useUnits } from "@/lib/ops/hooks";
 import { useSession } from "@/lib/ops/session";
@@ -214,8 +215,15 @@ export function splitSteps(instructions: string | null | undefined): string[] {
 /**
  * Duplica a ficha (e seus ingredientes) como nova versão ativa.
  * A ficha original continua como está — o usuário decide se a inativa.
+ * Devolve o id e a versão realmente gravada (maior versão do produto + 1).
  */
-export async function duplicateRecipe(recipe: RecipeRow, items: RecipeItemRow[], userId: string | null | undefined): Promise<string> {
+export async function duplicateRecipe(recipe: RecipeRow, _items: RecipeItemRow[], _userId: string | null | undefined): Promise<{ id: string; version: number }> {
+  // cópia atômica (cabeçalho + ingredientes) feita pelo banco
+  const { data, error } = await supabaseBrowser().rpc("ops_recipe_duplicate", { p_recipe: recipe.id, p_name: recipe.name });
+  if (error) throw toOpsError(error);
+  const r = data as { id: string; version: number };
+  return { id: r.id, version: Number(r.version) };
+}> {
   const sb = supabaseBrowser();
   const last = unwrap(
     await sb.from("recipes").select("version").eq("company_id", recipe.company_id).eq("product_id", recipe.product_id).order("version", { ascending: false }).limit(1),
@@ -256,7 +264,7 @@ export async function duplicateRecipe(recipe: RecipeRow, items: RecipeItemRow[],
       ),
     );
   }
-  return created.id;
+  return { id: created.id, version };
 }
 
 /* ------------------------------------------------------------------ */

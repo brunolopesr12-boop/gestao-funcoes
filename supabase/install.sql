@@ -3623,6 +3623,26 @@ create policy production_items_select on public.production_items for select to a
 grant select, insert, update, delete on all tables in schema public to authenticated, service_role;
 revoke all on all tables in schema public from anon;
 
+-- Duplicar ficha como nova versão (atômico): copia cabeçalho e ingredientes
+create or replace function public.ops_recipe_duplicate(p_recipe uuid, p_name text default null)
+returns jsonb language plpgsql security definer set search_path = public as $fn$
+declare v_r record; v_new uuid; v_version int;
+begin
+  select * into v_r from public.recipes where id = p_recipe;
+  if v_r.id is null then raise exception 'Ficha técnica não encontrada.'; end if;
+  perform public.ops_require_company(v_r.company_id, 'fichas.editar');
+  select coalesce(max(version), 0) + 1 into v_version from public.recipes where product_id = v_r.product_id;
+  insert into public.recipes (company_id, product_id, name, version, yield_quantity, portion_quantity, prep_time_min, shelf_life_days, instructions, notes, active, created_by)
+  values (v_r.company_id, v_r.product_id, coalesce(nullif(trim(p_name), ''), v_r.name), v_version, v_r.yield_quantity, v_r.portion_quantity, v_r.prep_time_min,
+          v_r.shelf_life_days, v_r.instructions, v_r.notes, true, auth.uid())
+  returning id into v_new;
+  insert into public.recipe_items (recipe_id, ingredient_product_id, gross_quantity, unit_id, net_quantity, notes, position)
+  select v_new, ingredient_product_id, gross_quantity, unit_id, net_quantity, notes, position from public.recipe_items where recipe_id = p_recipe order by position;
+  perform public.ops_audit(v_r.company_id, null, 'duplicou_ficha', 'recipes', v_new, v_r.name, null, jsonb_build_object('from', p_recipe, 'version', v_version));
+  return jsonb_build_object('id', v_new, 'version', v_version);
+end;
+$fn$;
+
 
 
 -- ===================================================================
