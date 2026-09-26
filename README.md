@@ -101,15 +101,17 @@ FEFO e idempotência, perda com custo/motivo/foto, inventário → ajustes,
 transferências, eventos de lote, validade → alerta, estoque mínimo →
 reposição, imutabilidade de movimentos/auditoria, compras → recebimento,
 temperatura → alerta, checklists, tarefas, painel/relatórios, onboarding,
-modelos de etiqueta (padrão por tipo) e guardas de administrador (só admin
-concede o perfil admin; a empresa nunca fica sem admin ativo).
+modelos de etiqueta (padrão por tipo), guardas de administrador (só admin
+concede o perfil admin; a empresa nunca fica sem admin ativo) e guardas de
+permissão (ninguém concede permissão avulsa que não possui; perfil de admin
+só é editado por admin).
 
 ## Estrutura
 
 ```
 supabase/
   schema.sql              módulo de treinamentos + VILA GPT (original)
-  migrations/0001..0018   sistema de cozinha (fonte da verdade)
+  migrations/0001..0019   sistema de cozinha (fonte da verdade)
   install.sql             arquivo único gerado (colar no Supabase)
 src/
   app/(ops)/              telas do sistema de cozinha

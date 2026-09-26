@@ -349,7 +349,7 @@ disso, só admins/gerentes criam ou convidam usuários.
 | Camada | Como | O que cobre |
 |---|---|---|
 | Lógica (`npm test`) | `node --test` sobre `src/lib` compilado | aptidão/treinamentos, VILA GPT, formatação pt-BR, conversão de números, CSV, mensagens de erro |
-| Banco (`npm run test:db`) | PostgreSQL local + shim de `auth.uid()` (`tests/db/auth-shim.sql`) | 24 cenários: bootstrap, permissões por perfil/unidade, conversões, recebimento→estoque, ficha→produção→lote, FEFO, perda, inventário, transferências, eventos de lote, validade→alerta, reposição, imutabilidade, compras→recebimento, temperatura, checklists, tarefas, painel, chave de serviço, onboarding, modelos de etiqueta (padrão por tipo e reposição dos modelos), guardas de administrador |
+| Banco (`npm run test:db`) | PostgreSQL local + shim de `auth.uid()` (`tests/db/auth-shim.sql`) | 25 cenários: bootstrap, permissões por perfil/unidade, conversões, recebimento→estoque, ficha→produção→lote, FEFO, perda, inventário, transferências, eventos de lote, validade→alerta, reposição, imutabilidade, compras→recebimento, temperatura, checklists, tarefas, painel, chave de serviço, onboarding, modelos de etiqueta (padrão por tipo e reposição dos modelos), guardas de administrador e de permissões avulsas |
 | Ponta a ponta (`npm run e2e` / `npm run e2e:prod`) | Playwright + app real + **Supabase local sem Docker** (`tests/local-supabase`: GoTrue falso com JWT HS256 e um PostgREST "lite" que traduz a sintaxe do supabase-js para SQL com RLS por transação) | login/primeiro acesso, módulos antigos sob login, recebimento→estoque→consumo→ficha do lote, reposição→compra→recebimento, ficha técnica→produção, inventário→ajuste, perda, temperatura→alerta, checklist, tarefas |
 
 O PostgREST lite (`tests/local-supabase/postgrest-lite.mjs`) existe só porque o
@@ -366,5 +366,7 @@ Migrations `0012`–`0018` foram criadas pelos módulos e complementam a base:
 `ops_label_template_set_default`, `ops_label_templates_seed_defaults`) e
 `0018_usuarios` (`v_memberships`, `ops_store_create`, guarda do último
 administrador, policies restritivas que só deixam administradores conceder ou
-mexer no perfil admin, tabelas extras no realtime). Todas idempotentes e
-incluídas no `install.sql`.
+mexer no perfil admin, tabelas extras no realtime) e `0019_ops_permissoes_guard`
+(policies restritivas: ninguém concede permissão avulsa que não possui; o perfil
+de um administrador só é editado por ele ou por outro administrador). Todas
+idempotentes e incluídas no `install.sql`.

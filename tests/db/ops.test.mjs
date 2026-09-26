@@ -588,3 +588,27 @@ test("administradores: só admin concede ou mexe no perfil admin; a empresa nunc
   await fails(as(U.admin, "select public.ops_store_create($1, '   ')", [STRO]), "nome");
   await fails(as(U.func, "select public.ops_store_create($1, 'Loja 3')", [STRO]), "Sem permissão");
 });
+
+test("permissões avulsas: ninguém concede o que não tem; perfil de admin só por admin", async () => {
+  // perfil personalizado na Sabor & Cia só com gestão de usuários (sem configurações)
+  const roleId = (await one(U.admin, "insert into public.access_roles (company_id, code, name) values ($1, 'rh', 'RH') returning id", [STRO])).id;
+  await as(U.admin, "insert into public.role_permissions (access_role_id, permission_code) values ($1, 'usuarios.gerenciar'), ($1, 'estoque.ver')", [roleId]);
+  const mFunc = (await one(U.admin, "update public.memberships set access_role_id = $2 where company_id = $1 and user_id = $3 returning id", [STRO, roleId, U.func])).id;
+  assert.equal(await val(U.func, "select public.ops_has_company_permission($1, 'usuarios.gerenciar')", [STRO]), true);
+  assert.equal(await val(U.func, "select public.ops_has_company_permission($1, 'configuracoes.editar')", [STRO]), false);
+  // não libera para si (nem para ninguém) o que não possui
+  await fails(as(U.func, "insert into public.membership_permissions (membership_id, permission_code, granted) values ($1, 'configuracoes.editar', true)", [mFunc]), "row-level security");
+  // negar é permitido; virar a negação em concessão, não
+  await as(U.func, "insert into public.membership_permissions (membership_id, permission_code, granted) values ($1, 'configuracoes.editar', false)", [mFunc]);
+  await fails(as(U.func, "update public.membership_permissions set granted = true where membership_id = $1 and permission_code = 'configuracoes.editar'", [mFunc]), "row-level security");
+  assert.equal(await val(U.func, "select public.ops_has_company_permission($1, 'configuracoes.editar')", [STRO]), false);
+  // o administrador concede
+  await as(U.admin, "update public.membership_permissions set granted = true where membership_id = $1 and permission_code = 'configuracoes.editar'", [mFunc]);
+  assert.equal(await val(U.func, "select public.ops_has_company_permission($1, 'configuracoes.editar')", [STRO]), true);
+  // perfil de administrador: quem só gerencia usuários não altera (0 linhas); o próprio perfil e os demais, sim
+  assert.equal((await as(U.func, "update public.profiles set full_name = 'Outro nome' where id = $1", [U.admin])).rowCount, 0);
+  assert.equal(await val(U.admin, "select full_name from public.profiles where id = $1", [U.admin]), "Usuário admin");
+  assert.equal((await as(U.func, "update public.profiles set full_name = 'Usuário func' where id = $1", [U.func])).rowCount, 1);
+  assert.equal((await as(U.func, "update public.profiles set phone = '11 99999-0000' where id = $1", [U.other])).rowCount, 1);
+  assert.equal((await as(U.admin, "update public.profiles set phone = '11 99999-0001' where id = $1", [U.other])).rowCount, 1);
+});
