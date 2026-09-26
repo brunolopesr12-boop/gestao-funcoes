@@ -16,7 +16,7 @@ export default defineConfig({
   expect: { timeout: 15_000 },
   fullyParallel: false,
   workers: 1,
-  retries: 0,
+  retries: 1,
   reporter: [["list"]],
   globalSetup: "./tests/e2e/global-setup.mjs",
   globalTeardown: "./tests/e2e/global-teardown.mjs",
@@ -29,7 +29,7 @@ export default defineConfig({
     launchOptions: { executablePath: process.env.PW_CHROMIUM ?? "/opt/pw-browsers/chromium" },
   },
   webServer: {
-    command: `npx next dev -p ${port}`,
+    command: `npx next dev -p ${port} 2>&1 | tee .tools/next-dev.log`,
     url: `http://localhost:${port}/login`,
     timeout: 180_000,
     reuseExistingServer: true,

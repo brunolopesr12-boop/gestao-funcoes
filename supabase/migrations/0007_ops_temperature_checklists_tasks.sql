@@ -410,3 +410,15 @@ create policy tasks_delete on public.tasks for delete to authenticated
 
 grant select, insert, update, delete on all tables in schema public to authenticated, service_role;
 revoke all on all tables in schema public from anon;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'tasks_assigned_profile_fkey') then
+    alter table public.tasks
+      add constraint tasks_assigned_profile_fkey foreign key (assigned_to) references public.profiles(id) on delete set null;
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'checklist_executions_assigned_profile_fkey') then
+    alter table public.checklist_executions
+      add constraint checklist_executions_assigned_profile_fkey foreign key (assigned_to) references public.profiles(id) on delete set null;
+  end if;
+end $$;

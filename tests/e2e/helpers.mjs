@@ -76,3 +76,25 @@ export async function ensureSupplier(request, tok, name) {
   if (found[0]) return found[0];
   return insert(request, tok, "suppliers", { company_id: VILA, name });
 }
+
+/** Seleciona a opção de um <select> cujo texto contém `text`. */
+export async function selectByText(select, text) {
+  const value = await select.evaluate((el, t) => {
+    const opt = Array.from(el.options).find((o) => (o.textContent ?? "").includes(t));
+    return opt ? opt.value : null;
+  }, text);
+  if (value === null) throw new Error(`opção com texto "${text}" não encontrada`);
+  await select.selectOption(value);
+}
+
+/** Seleciona a unidade no seletor do topo/sidebar (quando o usuário tem mais de uma). */
+export async function selectStore(page, label = "Vila Rica — Matriz") {
+  const switcher = page.locator('select[aria-label="Unidade"]').first();
+  if (await switcher.count()) {
+    const current = await switcher.evaluate((el) => el.options[el.selectedIndex]?.textContent ?? "");
+    if (!current.includes(label)) {
+      await selectByText(switcher, label);
+      await page.waitForTimeout(500);
+    }
+  }
+}

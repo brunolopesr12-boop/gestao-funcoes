@@ -1015,3 +1015,13 @@ revoke execute on function public.ops_handle_new_user() from public, anon, authe
 revoke execute on function public.ops_seed_company_defaults(uuid) from public, anon, authenticated;
 revoke execute on function public.ops_internal_on() from public, anon, authenticated;
 revoke execute on function public.ops_internal_off() from public, anon, authenticated;
+
+-- Chaves estrangeiras para perfis (permitem "embeds" memberships→profiles e
+-- tasks→profiles no PostgREST; o perfil é criado antes do vínculo pelos triggers/funções)
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'memberships_user_profile_fkey') then
+    alter table public.memberships
+      add constraint memberships_user_profile_fkey foreign key (user_id) references public.profiles(id) on delete cascade;
+  end if;
+end $$;

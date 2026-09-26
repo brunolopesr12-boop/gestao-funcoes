@@ -1424,6 +1424,16 @@ revoke execute on function public.ops_seed_company_defaults(uuid) from public, a
 revoke execute on function public.ops_internal_on() from public, anon, authenticated;
 revoke execute on function public.ops_internal_off() from public, anon, authenticated;
 
+-- Chaves estrangeiras para perfis (permitem "embeds" memberships→profiles e
+-- tasks→profiles no PostgREST; o perfil é criado antes do vínculo pelos triggers/funções)
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'memberships_user_profile_fkey') then
+    alter table public.memberships
+      add constraint memberships_user_profile_fkey foreign key (user_id) references public.profiles(id) on delete cascade;
+  end if;
+end $$;
+
 
 
 -- ===================================================================
@@ -4298,6 +4308,18 @@ create policy tasks_delete on public.tasks for delete to authenticated
 grant select, insert, update, delete on all tables in schema public to authenticated, service_role;
 revoke all on all tables in schema public from anon;
 
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'tasks_assigned_profile_fkey') then
+    alter table public.tasks
+      add constraint tasks_assigned_profile_fkey foreign key (assigned_to) references public.profiles(id) on delete set null;
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'checklist_executions_assigned_profile_fkey') then
+    alter table public.checklist_executions
+      add constraint checklist_executions_assigned_profile_fkey foreign key (assigned_to) references public.profiles(id) on delete set null;
+  end if;
+end $$;
+
 
 
 -- ===================================================================
@@ -5151,6 +5173,132 @@ end $$;
 -- Vila Rica: unidade principal com nome amigável (sem apagar nada)
 update public.stores set name = 'Vila Rica — Matriz'
  where company_id = '11111111-1111-4111-8111-111111111111' and name = 'Matriz' and code = 'U1';
+
+
+
+-- ===================================================================
+-- migration: 0012_cadastros.sql
+-- ===================================================================
+
+-- =====================================================================
+--  0012 · CADASTROS (produtos, categorias, unidades, fornecedores) —
+--         apoio à interface
+--    · v_suppliers  : fornecedores + última compra (max recorded_at do
+--                     histórico de preços) + contagens, para lista paginada
+--    · v_categories : categorias + quantidade de produtos (ativos e total)
+--  Views com security_invoker: respeitam as policies das tabelas de origem.
+-- =====================================================================
+
+-- ---------------------------------------------------------------------
+-- Fornecedores com última compra e contagens
+-- ---------------------------------------------------------------------
+drop view if exists public.v_suppliers;
+create view public.v_suppliers with (security_invoker = true) as
+select s.*,
+       (select max(h.recorded_at) from public.supplier_price_history h where h.supplier_id = s.id) as last_purchase_at,
+       (select count(*) from public.supplier_price_history h where h.supplier_id = s.id) as purchases_count,
+       (select count(*) from public.supplier_products sp where sp.supplier_id = s.id) as products_count
+from public.suppliers s;
+grant select on public.v_suppliers to authenticated, service_role;
+
+-- ---------------------------------------------------------------------
+-- Categorias com quantidade de produtos
+-- ---------------------------------------------------------------------
+drop view if exists public.v_categories;
+create view public.v_categories with (security_invoker = true) as
+select c.*,
+       (select count(*) from public.products p where p.category_id = c.id and p.active) as products_count,
+       (select count(*) from public.products p where p.category_id = c.id) as all_products_count,
+       (select count(*) from public.categories x where x.parent_id = c.id) as children_count
+from public.categories c;
+grant select on public.v_categories to authenticated, service_role;
+
+
+
+-- ===================================================================
+-- migration: 0012_inventario_perdas.sql
+-- ===================================================================
+
+-- =====================================================================
+--  0012 · INVENTÁRIO / PERDAS — apoio à interface
+--    · ops_losses_kpis : indicadores do período da tela /perdas, com os
+--      MESMOS filtros da lista (motivo, produto, funcionário, busca):
+--      total R$, quantidade, nº de registros, motivo que mais perdeu e o
+--      total do período anterior (mesma duração) para comparação.
+--      Exige perdas.ver na unidade. Idempotente.
+-- =====================================================================
+create or replace function public.ops_losses_kpis(
+  p_store uuid, p_from date, p_to date,
+  p_reason uuid default null, p_product uuid default null, p_user text default '', p_term text default ''
+) returns jsonb language plpgsql stable security definer set search_path = public as $fn$
+declare
+  v_days int; v_prev_from date; v_prev_to date;
+  v_count bigint; v_cost numeric; v_qty numeric; v_prev_cost numeric; v_prev_count bigint;
+  v_top_name text; v_top_cost numeric; v_top_count bigint;
+  v_like text; v_user text;
+begin
+  perform public.ops_require(p_store, 'perdas.ver');
+  if p_from is null or p_to is null or p_to < p_from then
+    raise exception 'Período inválido.';
+  end if;
+  v_days := (p_to - p_from) + 1;
+  v_prev_to := p_from - 1;
+  v_prev_from := v_prev_to - v_days + 1;
+  v_like := case when coalesce(trim(p_term), '') = '' then null else '%' || regexp_replace(trim(p_term), '[%_]', ' ', 'g') || '%' end;
+  v_user := case when coalesce(trim(p_user), '') = '' then null else '%' || regexp_replace(trim(p_user), '[%_]', ' ', 'g') || '%' end;
+
+  -- período atual
+  select count(*), coalesce(sum(x.total_cost), 0), coalesce(sum(x.quantity), 0)
+    into v_count, v_cost, v_qty
+  from public.v_losses x
+  where x.store_id = p_store and x.created_at >= p_from and x.created_at < p_to + 1
+    and (p_reason is null or x.loss_reason_id = p_reason)
+    and (p_product is null or x.product_id = p_product)
+    and (v_user is null or x.created_by_name ilike v_user)
+    and (v_like is null or x.product_name ilike v_like or x.internal_code ilike v_like
+         or coalesce(x.lot_code, '') ilike v_like or x.notes ilike v_like or x.reason_name ilike v_like);
+
+  -- motivo que mais perdeu (em R$) no período, com os mesmos filtros
+  select x.reason_name, round(sum(x.total_cost), 2), count(*)
+    into v_top_name, v_top_cost, v_top_count
+  from public.v_losses x
+  where x.store_id = p_store and x.created_at >= p_from and x.created_at < p_to + 1
+    and (p_reason is null or x.loss_reason_id = p_reason)
+    and (p_product is null or x.product_id = p_product)
+    and (v_user is null or x.created_by_name ilike v_user)
+    and (v_like is null or x.product_name ilike v_like or x.internal_code ilike v_like
+         or coalesce(x.lot_code, '') ilike v_like or x.notes ilike v_like or x.reason_name ilike v_like)
+  group by x.reason_name
+  order by sum(x.total_cost) desc, count(*) desc
+  limit 1;
+
+  -- período anterior (mesma duração), para variação
+  select count(*), coalesce(sum(x.total_cost), 0)
+    into v_prev_count, v_prev_cost
+  from public.v_losses x
+  where x.store_id = p_store and x.created_at >= v_prev_from and x.created_at < v_prev_to + 1
+    and (p_reason is null or x.loss_reason_id = p_reason)
+    and (p_product is null or x.product_id = p_product)
+    and (v_user is null or x.created_by_name ilike v_user)
+    and (v_like is null or x.product_name ilike v_like or x.internal_code ilike v_like
+         or coalesce(x.lot_code, '') ilike v_like or x.notes ilike v_like or x.reason_name ilike v_like);
+
+  return jsonb_build_object(
+    'from', p_from, 'to', p_to, 'days', v_days,
+    'count', v_count,
+    'total_cost', round(v_cost, 2),
+    'total_quantity', round(v_qty, 4),
+    'prev_from', v_prev_from, 'prev_to', v_prev_to,
+    'prev_count', v_prev_count,
+    'prev_total_cost', round(v_prev_cost, 2),
+    'top_reason', case when v_top_name is null then null
+                       else jsonb_build_object('name', v_top_name, 'cost', v_top_cost, 'count', v_top_count) end
+  );
+end;
+$fn$;
+
+revoke execute on function public.ops_losses_kpis(uuid, date, date, uuid, uuid, text, text) from public, anon;
+grant execute on function public.ops_losses_kpis(uuid, date, date, uuid, uuid, text, text) to authenticated, service_role;
 
 
 

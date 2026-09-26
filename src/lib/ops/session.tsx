@@ -125,7 +125,10 @@ export function OpsSessionProvider({ children }: { children: React.ReactNode }) 
       if (se) throw toOpsError(se);
       const rows = (perms ?? []) as PermRow[];
       const accessible = new Set(rows.map((r) => r.store_id));
-      const accessibleStores = ((sts ?? []) as Store[]).filter((s) => accessible.has(s.id));
+      const companyPos = new Map(((comps ?? []) as Company[]).map((c) => [c.id, c.position]));
+      const accessibleStores = ((sts ?? []) as Store[])
+        .filter((s) => accessible.has(s.id))
+        .sort((a, b) => (companyPos.get(a.company_id) ?? 0) - (companyPos.get(b.company_id) ?? 0) || a.position - b.position || a.name.localeCompare(b.name));
       setCompanies((comps ?? []) as Company[]);
       setPermRows(rows);
       setStores(accessibleStores);
