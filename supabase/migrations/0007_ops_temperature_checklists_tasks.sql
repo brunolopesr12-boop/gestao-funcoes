@@ -422,3 +422,13 @@ begin
       add constraint checklist_executions_assigned_profile_fkey foreign key (assigned_to) references public.profiles(id) on delete set null;
   end if;
 end $$;
+
+-- histórico de temperatura é preservado: equipamento com medições não pode ser apagado (inative-o)
+do $$
+begin
+  if exists (select 1 from pg_constraint where conname = 'temperature_logs_equipment_id_fkey' and confdeltype = 'c') then
+    alter table public.temperature_logs drop constraint temperature_logs_equipment_id_fkey;
+    alter table public.temperature_logs add constraint temperature_logs_equipment_id_fkey
+      foreign key (equipment_id) references public.temperature_equipment(id) on delete restrict;
+  end if;
+end $$;

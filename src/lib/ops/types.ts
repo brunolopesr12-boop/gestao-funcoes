@@ -103,7 +103,7 @@ export type Loss = {
 export type PurchaseOrderStatus = "rascunho" | "solicitado" | "aprovado" | "pedido" | "recebido" | "cancelado";
 export type PurchaseOrder = {
   id: UUID; company_id: UUID; store_id: UUID; supplier_id: UUID | null; number: string; status: PurchaseOrderStatus; expected_at: string | null; notes: string;
-  total: number; requested_at: string | null; approved_at: string | null; ordered_at: string | null; received_at: string | null; cancel_reason: string;
+  total: number; requested_at: string | null; approved_at: string | null; ordered_at: string | null; received_at: string | null; cancelled_at: string | null; cancel_reason: string;
   created_by: UUID | null; created_by_name: string; created_at: string; updated_at: string;
   suppliers?: Pick<Supplier, "id" | "name"> | null;
 };
@@ -117,7 +117,7 @@ export type ReceiptResult = "aprovado" | "aprovado_ressalva" | "recusado";
 export type Receipt = {
   id: UUID; company_id: UUID; store_id: UUID; supplier_id: UUID | null; purchase_order_id: UUID | null; number: string; invoice_number: string;
   invoice_date: string | null; received_at: string; status: ReceiptStatus; result: ReceiptResult | null; notes: string; total: number;
-  received_by: UUID | null; received_by_name: string; finalized_at: string | null; created_at: string; updated_at: string;
+  received_by: UUID | null; received_by_name: string; finalized_by: UUID | null; finalized_at: string | null; created_at: string; updated_at: string;
   suppliers?: Pick<Supplier, "id" | "name"> | null;
 };
 export type ReceiptItemResult = "aprovado" | "ressalva" | "recusado";
@@ -150,7 +150,7 @@ export type Production = {
   id: UUID; company_id: UUID; store_id: UUID; recipe_id: UUID | null; product_id: UUID; number: string; status: ProductionStatus; planned_quantity: number;
   produced_quantity: number | null; expected_yield: number | null; actual_yield_pct: number | null; lot_id: UUID | null; lot_code: string; expires_at: string | null;
   location_id: UUID | null; scheduled_for: string | null; started_at: string | null; finished_at: string | null; produced_by: UUID | null; produced_by_name: string;
-  notes: string; total_cost: number; unit_cost: number; created_by_name: string; created_at: string;
+  notes: string; total_cost: number; unit_cost: number; created_by_name: string; created_at: string; updated_at: string;
   products?: Pick<Product, "id" | "name" | "internal_code" | "stock_unit_id"> | null; recipes?: Pick<Recipe, "id" | "name" | "yield_quantity"> | null;
 };
 export type ProductionPlan = {

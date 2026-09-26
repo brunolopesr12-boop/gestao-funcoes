@@ -182,7 +182,10 @@ $fn$;
 create or replace function public.ops_report_losses(p_store uuid, p_from date, p_to date, p_group text default 'motivo')
 returns jsonb language plpgsql stable security definer set search_path = public as $fn$
 begin
-  perform public.ops_require(p_store, 'relatorios.ver');
+  -- painel de perdas: quem vê perdas também vê o resumo
+  if not public.ops_has_permission(p_store, 'perdas.ver') then
+    perform public.ops_require(p_store, 'relatorios.ver');
+  end if;
   return coalesce((
     select jsonb_agg(row_to_json(t)) from (
       select
