@@ -140,8 +140,11 @@ export function ReceiptItemDrawer({ open, onClose, receipt, item, nextPosition, 
     if (!open || !autoLocation || !product) return;
     if (storeSettings.isLoading) return;
     const def = storeSettings.data?.default_location_id;
+    // sem local padrão configurado: sugere o local cujo armazenamento combina com o produto
+    // (refrigerado → geladeira/câmara, congelado → freezer, ambiente → estoque seco)
+    const byStorage = locations.data?.find((l) => l.storage_type === product.storage_type)?.id;
     const first = locations.data?.[0]?.id;
-    const next = def && locations.data?.some((l) => l.id === def) ? def : first;
+    const next = def && locations.data?.some((l) => l.id === def) ? def : (byStorage ?? first);
     if (next) setLocationId(next);
   }, [open, autoLocation, product, storeSettings.data, storeSettings.isLoading, locations.data]);
 
