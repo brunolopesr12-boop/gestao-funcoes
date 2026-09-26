@@ -486,10 +486,13 @@ test("painel e relatórios", async () => {
   assert.equal(losses.length, 2);
   const prod = (await one(U.admin, "select public.ops_report_production($1, current_date - 30, current_date) as r", [ctx.store1])).r;
   assert.equal(prod.length, 1); assert.equal(Number(prod[0].produced), 3);
-  // etiqueta emitida fica registrada
-  await as(U.coz, "insert into public.labels (store_id, template_id, product_id, lot_id, kind, copies, payload) values ($1, (select id from public.label_templates where company_id = $2 and kind = 'producao' limit 1), $3, $4, 'producao', 2, '{\"product_name\":\"Recheio de frango\"}')", [ctx.store1, VILA, ctx.recheio, ctx.lotRecheio]);
-  const lb = await one(U.coz, "select printed_by_name, copies from public.labels where lot_id = $1", [ctx.lotRecheio]);
-  assert.equal(lb.printed_by_name, "Usuário coz"); assert.equal(lb.copies, 2);
+  // etiqueta emitida fica registrada (RPC do módulo de etiquetas)
+  const tpl = (await one(U.coz, "select id from public.label_templates where company_id = $1 and kind = 'producao' limit 1", [VILA])).id;
+  await as(U.coz, "select public.ops_label_print($1, $2, $3, $4, 'producao', 2, '{\"product_name\":\"Recheio de frango\"}'::jsonb)", [ctx.store1, tpl, ctx.recheio, ctx.lotRecheio]);
+  const lb = await one(U.coz, "select printed_by_name, copies, kind from public.labels where lot_id = $1", [ctx.lotRecheio]);
+  assert.equal(lb.printed_by_name, "Usuário coz"); assert.equal(lb.copies, 2); assert.equal(lb.kind, "producao");
+  await fails(as(U.other, "select public.ops_label_print($1, null, null, null, 'producao', 1)", [ctx.store1]), "Sem permissão");
+  await fails(as(U.coz, "select public.ops_label_print($1, null, null, null, 'producao', 0)", [ctx.store1]), "pelo menos 1");
   await fails(root("delete from public.labels where lot_id = $1", [ctx.lotRecheio]), "imutável");
   // auditoria completa da jornada
   const acts = await as(U.admin, "select distinct action from public.audit_logs where company_id = $1", [VILA]);
