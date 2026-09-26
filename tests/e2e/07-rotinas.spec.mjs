@@ -46,11 +46,15 @@ test.describe.serial("temperaturas, checklists e tarefas", () => {
     await expect(page).toHaveURL(/\/checklists\/executar\//, { timeout: 60_000 });
 
     // primeira tarefa é crítica: marcar abre a folha pedindo observação
+    // (numa repetição do teste o item já pode estar marcado; o botão então diz "Desmarcar")
     const first = page.getByRole("button", { name: /Conferir temperatura das geladeiras/ }).first();
-    await first.click();
-    const sheet = page.locator('[class*="sheet-up"]').last();
-    await sheet.getByPlaceholder(/O que foi verificado/).fill("Geladeiras a 3 °C, freezers a -18 °C");
-    await sheet.getByRole("button", { name: /Marcar como feito|Confirmar|Salvar/ }).last().click();
+    await expect(first).toBeVisible({ timeout: 30_000 });
+    if (!/^Desmarcar/.test((await first.getAttribute("aria-label")) ?? "")) {
+      await first.click();
+      const sheet = page.locator('[class*="sheet-up"]').last();
+      await sheet.getByPlaceholder(/O que foi verificado/).fill("Geladeiras a 3 °C, freezers a -18 °C");
+      await sheet.getByRole("button", { name: /Marcar como feito|Confirmar|Salvar/ }).last().click();
+    }
     await expect(page.getByText(/1 de 5|1\/5/).first()).toBeVisible({ timeout: 30_000 });
 
     // tenta finalizar com pendências: o banco recusa (checklist obrigatório)
@@ -74,6 +78,9 @@ test.describe.serial("temperaturas, checklists e tarefas", () => {
     await drawer.getByRole("button", { name: /Alta/ }).click();
     await drawer.locator('input[type="datetime-local"]').fill("2026-09-25T08:00");
     await drawer.getByRole("button", { name: "Salvar" }).click();
+    // prazo já vencido: a tarefa nasce "atrasada" e aparece na aba Atrasadas (a aba Pendentes fica vazia)
+    await expect(page.getByText(/1 tarefa\(s\) atrasada\(s\)/).first()).toBeVisible({ timeout: 30_000 });
+    await page.getByRole("button", { name: /Atrasadas/ }).first().click();
     await expect(page.getByText("Organizar câmara fria").first()).toBeVisible({ timeout: 30_000 });
 
     const t = await select(request, tok, `tasks?select=id,status,priority&store_id=eq.${store.id}&title=eq.Organizar%20c%C3%A2mara%20fria`);

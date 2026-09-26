@@ -23,6 +23,11 @@ export default function TarefasPage() {
   const canWork = can("tarefas.executar");
 
   const [tab, setTab] = useState<TaskTab>("pendentes");
+  // aba inicial pela URL (?tab=atrasadas), sem Suspense: lida só no navegador
+  useEffect(() => {
+    const wanted = new URLSearchParams(window.location.search).get("tab");
+    if (wanted && TASK_TABS.some((x) => x.value === wanted)) setTab(wanted as TaskTab);
+  }, []);
   const [assigned, setAssigned] = useState("");
   const [priority, setPriority] = useState<"" | TaskPriority>("");
   const [mine, setMine] = useState(false);
