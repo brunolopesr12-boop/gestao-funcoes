@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "@/lib/ops/session";
 import { useInvalidate, useRealtimeInvalidate } from "@/lib/ops/query";
@@ -44,6 +44,7 @@ export default function ModeloPage() {
 
   const [f, setF] = useState<Form>(EMPTY);
   const [dirty, setDirty] = useState(false);
+  const dirtyRef = useRef(false);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (isNew) {
@@ -52,6 +53,8 @@ export default function ModeloPage() {
     }
     const m = model.data;
     if (!m) return;
+    // o modelo mudou no banco (realtime/refetch): não sobrescreve o que o usuário está editando
+    if (dirtyRef.current) return;
     setF({
       name: m.name, kind: m.kind, description: m.description, frequency: m.frequency, scheduled_time: m.scheduled_time ? m.scheduled_time.slice(0, 5) : "", weekdays: m.weekdays ?? [],
       month_day: m.month_day ?? 1, store_id: m.store_id ?? "", assigned_to: m.assigned_to ?? "", mandatory: m.mandatory, requires_evidence: m.requires_evidence, active: m.active, position: m.position,
@@ -61,6 +64,7 @@ export default function ModeloPage() {
 
   function set<K extends keyof Form>(k: K, v: Form[K]) {
     setF((s) => ({ ...s, [k]: v }));
+    dirtyRef.current = true;
     setDirty(true);
   }
   function toggleDay(d: number) {
@@ -84,14 +88,17 @@ export default function ModeloPage() {
         const res = await sb.from("checklists").insert(payload).select("id").single();
         if (res.error) throw toOpsError(res.error);
         notify("Modelo criado. Agora cadastre as tarefas.");
+        dirtyRef.current = false;
+        setDirty(false);
         invalidate("checklists");
         router.replace(`/checklists/modelos/${(res.data as { id: string }).id}`);
       } else {
         const res = await sb.from("checklists").update(payload).eq("id", id);
         if (res.error) throw toOpsError(res.error);
         notify("Modelo salvo");
-        invalidate("checklists");
+        dirtyRef.current = false;
         setDirty(false);
+        invalidate("checklists");
       }
     } catch (e) {
       notify(toOpsError(e as Error).message, "erro");

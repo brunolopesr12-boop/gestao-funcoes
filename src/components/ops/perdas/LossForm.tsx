@@ -146,6 +146,9 @@ export function LossForm({ lotId, productId }: { lotId?: string | null; productI
   if (lotId && lotQ.isLoading) return <Skeleton rows={3} />;
   if (lotId && lotQ.error) return <ErrorBox error={toOpsError(lotQ.error as Error).message} onRetry={() => void lotQ.refetch()} />;
   if (lotId && !lotQ.isLoading && !fixedLot) return <ErrorBox error="Lote não encontrado. Ele pode ter sido removido ou ser de outra unidade." />;
+  if (fixedLot && store && fixedLot.lot.store_id !== store.id) {
+    return <ErrorBox error={`Este lote pertence à unidade ${fixedLot.store?.name ?? "outra"}. Troque de unidade no menu para registrar a perda dele.`} />;
+  }
 
   if (done) {
     return (
@@ -184,6 +187,7 @@ export function LossForm({ lotId, productId }: { lotId?: string | null; productI
         </div>
       ) : (
         <>
+          {productId && paramProduct.error && <InlineAlert tone="amber">Produto do link não encontrado ({toOpsError(paramProduct.error as Error).message}). Busque o produto abaixo.</InlineAlert>}
           <p className="mb-1.5 text-sm font-semibold text-slate-300">Produto</p>
           <ProductPicker value={product} onChange={(p) => { setProduct(p); setLotRow(null); }} autoFocus={!product} onScan={() => setScanOpen(true)} />
         </>

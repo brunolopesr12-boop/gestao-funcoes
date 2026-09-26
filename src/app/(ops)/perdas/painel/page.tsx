@@ -16,7 +16,8 @@ export default function PainelPerdasPage() {
   const [range, setRange] = useState({ from: todayISO(-29), to: todayISO() });
   const [metric, setMetric] = useState<Metric>("cost");
   const prev = previousPeriod(range.from, range.to);
-  const enabled = can("relatorios.ver");
+  // o banco (ops_report_losses) libera o resumo para quem vê perdas ou relatórios
+  const enabled = can("perdas.ver") || can("relatorios.ver");
 
   const cur = useQueries({ queries: REPORT_GROUPS.map((g) => lossReportOptions(store?.id, range.from, range.to, g.value, enabled)) });
   const before = useQueries({ queries: REPORT_GROUPS.map((g) => lossReportOptions(store?.id, prev.from, prev.to, g.value, enabled)) });
@@ -36,7 +37,7 @@ export default function PainelPerdasPage() {
     return (
       <div className="mx-auto max-w-5xl">
         <PageHeader title="Painel de perdas" backHref="/perdas" icon="chart" />
-        <EmptyState emoji="🔒" title="Este painel exige a permissão “Relatórios: ver”" description="Peça ao gerente. Você ainda pode consultar a lista de perdas." />
+        <EmptyState emoji="🔒" title="Este painel exige a permissão “Perdas: ver”" description="Peça ao gerente. Você ainda pode consultar a lista das perdas que você registrou." />
       </div>
     );
   }

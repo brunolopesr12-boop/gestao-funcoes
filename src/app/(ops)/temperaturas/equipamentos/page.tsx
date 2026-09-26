@@ -104,11 +104,12 @@ export default function EquipamentosPage() {
       </span>
     ) },
     ...(canEdit
-      ? [{ key: "actions", label: "", align: "right" as const, render: (r: EquipmentStatusRow) => <Actions r={r} /> }]
+      ? [{ key: "actions", label: "", align: "right" as const, render: (r: EquipmentStatusRow) => renderActions(r) }]
       : []),
   ];
 
-  function Actions({ r }: { r: EquipmentStatusRow }) {
+  // função de renderização (não um componente interno) para não remontar os botões a cada render
+  function renderActions(r: EquipmentStatusRow) {
     return (
       <span className="inline-flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
         <span className="[&>*]:rotate-180"><IconButton icon="chevronDown" label="Mover para cima" size={34} disabled={busy} onClick={() => void move(r, -1)} /></span>
@@ -163,7 +164,7 @@ export default function EquipamentosPage() {
                 </div>
                 <Badge tone={EQUIPMENT_STATUS_META[r.status].tone} dot={EQUIPMENT_STATUS_META[r.status].dot}>{EQUIPMENT_STATUS_META[r.status].label}</Badge>
               </div>
-              {canEdit && <div className="mt-2"><Actions r={r} /></div>}
+              {canEdit && <div className="mt-2">{renderActions(r)}</div>}
             </div>
           )}
         />

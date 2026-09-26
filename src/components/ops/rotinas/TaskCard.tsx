@@ -50,7 +50,7 @@ export function TaskCard({ task, actions, compact }: { task: Task; actions: Task
       {task.notes && !compact && <p className="mt-1.5 text-xs text-slate-500">Obs.: {task.notes}</p>}
       {(work || actions.canEdit) && (
         <div className="mt-3 flex flex-wrap gap-2">
-          {open && work && task.status !== "em_andamento" && (
+          {open && work && task.status !== "em_andamento" && !task.started_at && (
             <Button size="md" variant="primary" disabled={busy} onClick={() => actions.onStart(task)}><Icon name="chevronRight" size={16} /> Iniciar</Button>
           )}
           {open && work && (

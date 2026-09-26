@@ -51,8 +51,6 @@ export const REPORT_GROUPS: { value: ReportGroup; title: string; subtitle: strin
   { value: "categoria", title: "Perdas por categoria", subtitle: "Categoria do produto", kind: "bar" },
 ];
 
-export const LOSS_SELECT = "*";
-
 /* ------------------------------------------------------------------ */
 /* Utilitários                                                         */
 /* ------------------------------------------------------------------ */
@@ -195,19 +193,6 @@ export function useLossKpis(storeId: string | undefined, f: LossFilters, enabled
   });
 }
 
-/** Relatório agregado (RPC ops_report_losses, exige relatorios.ver). */
-export function useLossReport(storeId: string | undefined, from: string, to: string, group: ReportGroup, enabled = true) {
-  return useQuery({
-    queryKey: ["losses", "report", storeId, from, to, group],
-    enabled: Boolean(storeId) && enabled && isISODate(from) && isISODate(to),
-    staleTime: 60_000,
-    queryFn: async () => {
-      const rows = await rpc<LossReportRow[] | null>("ops_report_losses", { p_store: storeId!, p_from: from, p_to: to, p_group: group });
-      return (rows ?? []).map((r) => ({ label: String(r.label ?? "—"), quantity: Number(r.quantity ?? 0), cost: Number(r.cost ?? 0), occurrences: Number(r.occurrences ?? 0) }));
-    },
-  });
-}
-
 /** Ficha do lote (QR) para registrar perda de um lote fixo. */
 export function useLossLotSummary(lotId: string | null | undefined) {
   return useQuery({
@@ -217,7 +202,8 @@ export function useLossLotSummary(lotId: string | null | undefined) {
   });
 }
 
-/** Opções de consulta do relatório (para useQueries no painel: vários grupos/períodos de uma vez). */
+/** Opções de consulta do relatório agregado (RPC ops_report_losses, exige perdas.ver ou relatorios.ver)
+ *  — para useQueries no painel: vários grupos/períodos de uma vez. */
 export function lossReportOptions(storeId: string | undefined, from: string, to: string, group: ReportGroup, enabled = true) {
   return {
     queryKey: ["losses", "report", storeId, from, to, group] as const,

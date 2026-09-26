@@ -30,6 +30,7 @@ export default function PerdasPage() {
   useEffect(() => setPage(0), [f.from, f.to, f.reason, f.product, term, user, setPage]);
 
   const canSeeAll = can("perdas.ver");
+  const canPanel = canSeeAll || can("relatorios.ver");
   const q = useLosses(store?.id, eff, pg.range);
   const kpis = useLossKpis(store?.id, eff, canSeeAll);
   useRealtimeInvalidate(["losses"]);
@@ -126,7 +127,7 @@ export default function PerdasPage() {
                 <Icon name="plus" size={18} /> Registrar perda
               </Link>
             )}
-            {can("relatorios.ver") && (
+            {canPanel && (
               <Link href="/perdas/painel" className="inline-flex items-center gap-2 rounded-xl border border-[var(--line)] bg-white/5 px-4 py-2.5 text-[15px] font-medium text-slate-100 hover:bg-white/10">
                 <Icon name="chart" size={18} /> Painel de perdas
               </Link>

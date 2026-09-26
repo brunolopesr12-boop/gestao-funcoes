@@ -26,11 +26,12 @@ export function QtyUnitInput({
 }) {
   const { options, stockUnit } = useProductUnitOptions(product);
 
-  // unidade padrão = unidade de estoque
+  // unidade padrão = unidade de estoque (também quando o formulário limpa a unidade)
+  const stockUnitId = stockUnit?.id;
   useEffect(() => {
-    if (!unitId && stockUnit) onUnitId(stockUnit.id);
+    if (!unitId && stockUnitId) onUnitId(stockUnitId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stockUnit?.id]);
+  }, [stockUnitId, unitId]);
 
   const chosen = options.find((o) => o.id === unitId) ?? (stockUnit ? { id: stockUnit.id, code: stockUnit.code, label: stockUnit.code, factor: 1 } : null);
   const inStock = quantity !== null && chosen?.factor ? quantity * chosen.factor : quantity;

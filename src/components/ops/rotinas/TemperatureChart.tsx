@@ -54,7 +54,8 @@ export function TemperatureChart({ points, min, max, days = 7 }: { points: Chart
         .sort((a, b) => a.t - b.t),
     [points],
   );
-  const now = Date.now();
+  // "agora" fixo por conjunto de pontos: evita recalcular eixo/ticks a cada render
+  const now = useMemo(() => Date.now(), [points]); // eslint-disable-line react-hooks/exhaustive-deps
   const start = now - days * 86_400_000;
   const domain = useMemo<[number, number]>(() => {
     const values = data.map((d) => d.temperature).concat([Number(min), Number(max)]);

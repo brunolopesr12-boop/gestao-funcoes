@@ -78,10 +78,6 @@ export function looksLikeBarcode(t: string): boolean {
   return /^\d{6,}$/.test(t.trim());
 }
 
-export function isUuid(t: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(t.trim());
-}
-
 /** Início do dia de hoje (fuso do aparelho) em ISO, para filtrar created_at. */
 export function startOfTodayISO(): string {
   return new Date(`${todayISO()}T00:00:00`).toISOString();
@@ -171,7 +167,7 @@ export function useCountItems(
           .select("id")
           .eq("company_id", company!.id)
           .or(`name.ilike.${like},internal_code.ilike.${like}${raw ? `,barcode.eq.${raw}` : ""}`)
-          .limit(300);
+          .limit(100); // mais que isso estoura o tamanho da URL do filtro `in`
         if (pr.error) throw toOpsError(pr.error);
         ids = ((pr.data ?? []) as { id: string }[]).map((p) => p.id);
         if (ids.length === 0) return { rows: [] as CountItemRow[], total: 0 };

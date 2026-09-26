@@ -59,8 +59,10 @@ export default function ExecutarChecklistPage() {
     // servidor confirmou: descarta os overrides que já batem com o banco
     if (!items.data) return;
     setOverrides((prev) => {
+      const confirmed = items.data.filter((it) => prev[it.id] && prev[it.id].done === it.done);
+      if (confirmed.length === 0) return prev;
       const next = { ...prev };
-      for (const it of items.data) if (next[it.id] && next[it.id].done === it.done) delete next[it.id];
+      for (const it of confirmed) delete next[it.id];
       return next;
     });
   }, [items.data]);
@@ -74,7 +76,10 @@ export default function ExecutarChecklistPage() {
   const [notes, setNotes] = useState("");
   const [confirmFinish, setConfirmFinish] = useState(false);
   const [finishing, setFinishing] = useState(false);
-  useEffect(() => { if (e) setNotes(e.notes ?? ""); }, [e]);
+  // só sincroniza a observação geral quando o texto salvo no banco muda (marcar itens
+  // altera done_items e refaz a consulta — não pode apagar o que o usuário está digitando)
+  const serverNotes = e?.notes;
+  useEffect(() => { if (serverNotes !== undefined) setNotes(serverNotes ?? ""); }, [serverNotes]);
 
   async function setItem(item: ChecklistExecutionItem, done: boolean, itemNotes = "", photo = "") {
     setBusyId(item.id);
