@@ -142,12 +142,11 @@ export async function POST(req: NextRequest) {
   if (prof.error) return json(502, { ok: false, erro: `Usuário criado, mas o perfil não foi salvo: ${prof.error.message}` });
 
   // 3) vínculo com a empresa (reaproveita convite pendente ou vínculo existente)
-  const { data: existingMs } = await svc
-    .from("memberships")
-    .select("id, user_id, invited_email, active")
-    .eq("company_id", body.company_id)
-    .or(`user_id.eq.${userId},and(user_id.is.null,invited_email.ilike.${body.email.replace(/[%_,()]/g, "")})`);
-  const existingM = (existingMs ?? []).find((m) => m.user_id === userId) ?? (existingMs ?? [])[0] ?? null;
+  const [{ data: byUser }, { data: byInvite }] = await Promise.all([
+    svc.from("memberships").select("id").eq("company_id", body.company_id).eq("user_id", userId).limit(1),
+    svc.from("memberships").select("id").eq("company_id", body.company_id).is("user_id", null).ilike("invited_email", body.email).limit(1),
+  ]);
+  const existingM = byUser?.[0] ?? byInvite?.[0] ?? null;
 
   let membershipId: string;
   if (existingM) {

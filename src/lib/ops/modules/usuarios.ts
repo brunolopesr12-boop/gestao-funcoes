@@ -123,8 +123,13 @@ export function useCompanyStores(companyId?: string) {
   });
 }
 
-function likeTerm(t: string): string {
-  return `%${t.trim().replace(/[%_,()]/g, "")}%`;
+/** Termo para ilike dentro de .or(): remove só o que quebra a sintaxe do filtro. */
+export function likeTerm(t: string): string {
+  return `%${t.trim().replace(/[%,()"]/g, "")}%`;
+}
+/** Valor exato para ilike dentro de .or() (e-mail, por exemplo). */
+export function exactTerm(t: string): string {
+  return t.trim().replace(/[%,()"]/g, "");
 }
 
 /** Lista paginada de vínculos (v_memberships) com busca e filtros no banco. */

@@ -7,7 +7,7 @@ import { useInvalidate } from "@/lib/ops/query";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { unwrap } from "@/lib/ops/rpc";
 import { toOpsError } from "@/lib/ops/errors";
-import { apiCreateUser, generatePassword, isValidEmail, useAccessRoles, useServiceRole } from "@/lib/ops/modules/usuarios";
+import { apiCreateUser, exactTerm, generatePassword, isValidEmail, useAccessRoles, useServiceRole } from "@/lib/ops/modules/usuarios";
 import { Button, Choice, Field, InlineAlert, Select, Sheet, TextInput, useToast } from "@/components/ops/ui";
 import { CopyButton, Label } from "./Common";
 import { PasswordField } from "./PasswordField";
@@ -64,7 +64,7 @@ export function NewUserSheet({ open, onClose }: { open: boolean; onClose: () => 
 
   async function alreadyMember(): Promise<string | null> {
     const rows = unwrap(
-      await supabaseBrowser().from("v_memberships").select("id, email, invited_email").eq("company_id", company!.id).or(`email.ilike.${email.trim()},invited_email.ilike.${email.trim()}`).limit(1),
+      await supabaseBrowser().from("v_memberships").select("id, email, invited_email").eq("company_id", company!.id).or(`email.ilike.${exactTerm(email)},invited_email.ilike.${exactTerm(email)}`).limit(1),
     ) as { id: string }[];
     return rows[0]?.id ?? null;
   }
