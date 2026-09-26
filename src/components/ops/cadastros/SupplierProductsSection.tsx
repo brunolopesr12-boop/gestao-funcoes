@@ -8,7 +8,7 @@ import { toOpsError } from "@/lib/ops/errors";
 import { fmtDate, fmtMoney } from "@/lib/ops/format";
 import type { Product } from "@/lib/ops/types";
 import { useAllUnits, useSupplierProducts, type SupplierProductRow } from "@/lib/ops/modules/cadastros";
-import { Badge, Button, DataTable, ErrorBox, Field, IconButton, NumberInput, Sheet, TextInput, Toggle, useToast, type Column } from "@/components/ops/ui";
+import { Badge, Button, ConfirmSheet, DataTable, ErrorBox, Field, IconButton, NumberInput, Sheet, TextInput, Toggle, useToast, type Column } from "@/components/ops/ui";
 import { ProductPicker, UnitSelect } from "@/components/ops/pickers";
 import { Icon } from "@/components/ops/Icon";
 import { PriceComparisonSheet } from "./PriceComparisonSheet";
@@ -29,6 +29,7 @@ export function SupplierProductsSection({ supplierId, canEdit }: { supplierId: s
   const [preferred, setPreferred] = useState(false);
   const [busy, setBusy] = useState(false);
   const [compare, setCompare] = useState<{ id: string; name: string } | null>(null);
+  const [removing, setRemoving] = useState<SupplierProductRow | null>(null);
 
   function openAdd() {
     setEditing(null);
@@ -106,7 +107,7 @@ export function SupplierProductsSection({ supplierId, canEdit }: { supplierId: s
         <div className="flex justify-end gap-1">
           <IconButton icon="scale" label="Comparar preços" size={34} onClick={() => setCompare({ id: r.product_id, name: r.products?.name ?? "" })} />
           {canEdit && <IconButton icon="edit" label="Editar" size={34} onClick={() => openEdit(r)} />}
-          {canEdit && <IconButton icon="trash" label="Remover" tone="danger" size={34} disabled={busy} onClick={() => void remove(r)} />}
+          {canEdit && <IconButton icon="trash" label="Remover" tone="danger" size={34} disabled={busy} onClick={() => setRemoving(r)} />}
         </div>
       ),
     },
@@ -136,10 +137,20 @@ export function SupplierProductsSection({ supplierId, canEdit }: { supplierId: s
               <span className="font-bold tabular-nums">{Number(r.last_price) > 0 ? fmtMoney(r.last_price) : "—"}</span>
               <IconButton icon="scale" label="Comparar preços" size={34} onClick={() => setCompare({ id: r.product_id, name: r.products?.name ?? "" })} />
               {canEdit && <IconButton icon="edit" label="Editar" size={34} onClick={() => openEdit(r)} />}
+              {canEdit && <IconButton icon="trash" label="Remover" tone="danger" size={34} disabled={busy} onClick={() => setRemoving(r)} />}
             </div>
           )}
         />
       )}
+
+      <ConfirmSheet
+        open={removing !== null}
+        onClose={() => setRemoving(null)}
+        title="Remover produto do fornecedor"
+        message={removing ? `Remover “${removing.products?.name ?? "este produto"}” da lista de produtos deste fornecedor? O histórico de compras continua guardado; o vínculo volta sozinho no próximo recebimento.` : ""}
+        confirmLabel="Remover"
+        onConfirm={() => { if (removing) void remove(removing); }}
+      />
 
       <Sheet
         open={addOpen}

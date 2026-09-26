@@ -45,8 +45,9 @@ export function UnitEditorSheet({ open, onClose, unit, nextPosition }: { open: b
         decimals: Math.max(0, Math.min(6, Math.round(decimals ?? 0))), active,
       };
       if (unit) {
-        const { error } = await supabaseBrowser().from("units").update(payload).eq("id", unit.id);
-        if (error) throw error;
+        const r = await supabaseBrowser().from("units").update(payload).eq("id", unit.id).select("id");
+        if (r.error) throw r.error;
+        if (!r.data?.length) throw new Error("Você não tem permissão para editar unidades.");
         notify("Unidade salva");
       } else {
         const { error } = await supabaseBrowser().from("units").insert({ ...payload, position: nextPosition });

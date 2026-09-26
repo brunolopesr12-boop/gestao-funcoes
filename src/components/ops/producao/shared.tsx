@@ -76,10 +76,10 @@ export function ProductionStatusBadge({ status }: { status: ProductionStatus }) 
   return <Badge tone={tone}>{PRODUCTION_STATUS_LABEL[status]}</Badge>;
 }
 
-/** Rendimento real em %, colorido (≥95% verde, ≥80% amarelo, abaixo vermelho). */
+/** Rendimento real em % (2 casas, como o banco grava em actual_yield_pct), colorido (≥95% verde, ≥80% amarelo, abaixo vermelho). */
 export function YieldBadge({ pct }: { pct: number | null | undefined }) {
   if (pct === null || pct === undefined) return <span className="text-slate-500">—</span>;
-  return <Badge tone={yieldTone(pct)}>{fmtPct(pct)}</Badge>;
+  return <Badge tone={yieldTone(pct)}>{fmtPct(pct, 2)}</Badge>;
 }
 
 /** Indicador de etapas do fluxo guiado. */

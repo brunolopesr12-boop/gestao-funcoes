@@ -128,11 +128,12 @@ export default function ProdutosPage() {
                 <Icon name="plus" size={18} /> Novo produto
               </Link>
             )}
-            <Link href="/produtos/categorias" className="inline-flex items-center gap-2 rounded-xl border border-[var(--line)] bg-white/5 px-4 py-2.5 text-[15px] font-medium text-slate-100 hover:bg-white/10">
+            {/* no celular esses atalhos ficam na navegação de cadastros logo abaixo */}
+            <Link href="/produtos/categorias" className="hidden items-center gap-2 rounded-xl border border-[var(--line)] bg-white/5 px-4 py-2.5 text-[15px] font-medium text-slate-100 hover:bg-white/10 sm:inline-flex">
               <Icon name="layers" size={18} /> Categorias
             </Link>
-            <Link href="/produtos/unidades" className="inline-flex items-center gap-2 rounded-xl border border-[var(--line)] bg-white/5 px-4 py-2.5 text-[15px] font-medium text-slate-100 hover:bg-white/10">
-              <Icon name="scale" size={18} /> <span className="hidden sm:inline">Unidades de medida</span><span className="sm:hidden">Unidades</span>
+            <Link href="/produtos/unidades" className="hidden items-center gap-2 rounded-xl border border-[var(--line)] bg-white/5 px-4 py-2.5 text-[15px] font-medium text-slate-100 hover:bg-white/10 sm:inline-flex">
+              <Icon name="scale" size={18} /> Unidades de medida
             </Link>
             <Button variant="soft" disabled={exporting || (q.data?.total ?? 0) === 0} onClick={() => void exportCsv()}>
               <Icon name="download" size={18} /> <span className="hidden sm:inline">{exporting ? "Exportando…" : "Exportar"}</span> CSV

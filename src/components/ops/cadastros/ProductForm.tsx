@@ -15,7 +15,7 @@ import {
   emptyProductForm, LOCATION_KIND_OPTIONS, nextInternalCode, PRODUCT_KIND_OPTIONS, productPayload, productToForm, STORAGE_TYPE_OPTIONS, useAllUnits, useProductStoreSettings,
   useProductUnits, useSupplierProducts, validateProductForm, type ProductForm as ProductFormState, type ProductRow,
 } from "@/lib/ops/modules/cadastros";
-import { Badge, Button, Choice, ConfirmSheet, Field, InlineAlert, NumberInput, PageHeader, Select, Sheet, Skeleton, Tabs, TextArea, TextInput, Toggle, useToast } from "@/components/ops/ui";
+import { Badge, Button, Choice, ConfirmSheet, ErrorBox, Field, InlineAlert, NumberInput, PageHeader, Select, Sheet, Skeleton, Tabs, TextArea, TextInput, Toggle, useToast } from "@/components/ops/ui";
 import { CategorySelect, ProductThumb } from "@/components/ops/pickers";
 import { PhotoUpload } from "@/components/ops/PhotoUpload";
 import { QrScanner } from "@/components/ops/QrScanner";
@@ -121,7 +121,8 @@ export function ProductForm({ product }: { product: ProductRow | null }) {
     ? pendingLinks
     : (spQ.data ?? []).map((r) => ({ id: r.id, supplier_id: r.supplier_id, supplier_name: r.suppliers?.name, supplier_code: r.supplier_code, unit_id: r.unit_id ?? "", last_price: Number(r.last_price), last_purchase_at: r.last_purchase_at, preferred: r.preferred }));
   const addLink = async (l: Omit<SupplierLink, "id" | "last_purchase_at">) => {
-    if (isNew) return setPendingLinks((x) => [...x, { ...l, id: newId(), last_purchase_at: null }]);
+    // só um fornecedor preferido por produto (mesma regra aplicada no banco ao editar)
+    if (isNew) return setPendingLinks((x) => [...x.map((p) => (l.preferred ? { ...p, preferred: false } : p)), { ...l, id: newId(), last_purchase_at: null }]);
     try {
       if (l.preferred) await sb().from("supplier_products").update({ preferred: false }).eq("product_id", product!.id);
       const r = await sb().from("supplier_products").insert({ supplier_id: l.supplier_id, product_id: product!.id, supplier_code: l.supplier_code, unit_id: l.unit_id || null, last_price: l.last_price, preferred: l.preferred }).select("id");
@@ -336,6 +337,7 @@ export function ProductForm({ product }: { product: ProductRow | null }) {
   const catEmoji = product?.categories?.emoji;
 
   if (unitsQ.isLoading) return <Skeleton rows={4} />;
+  if (unitsQ.error) return <div className="mx-auto max-w-5xl"><ErrorBox error={toOpsError(unitsQ.error as Error).message} onRetry={() => void unitsQ.refetch()} /></div>;
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -516,7 +518,7 @@ export function ProductForm({ product }: { product: ProductRow | null }) {
       )}
 
       {tab === "fornecedores" && (
-        <ProductSuppliersSection form={form} set={(p) => { if (canEdit) set(p); }} units={units} links={links} onAdd={addLink} onRemove={removeLink} onTogglePreferred={togglePreferred} canEdit={canEdit && canCompany("fornecedores.editar")} onCompare={() => setCompareOpen(true)} compareEnabled={!isNew} />
+        <ProductSuppliersSection form={form} set={(p) => { if (canEdit) set(p); }} units={units} links={links} onAdd={addLink} onRemove={removeLink} onTogglePreferred={togglePreferred} canEdit={canEdit && canCompany("fornecedores.editar")} onCompare={() => setCompareOpen(true)} compareEnabled={!isNew && canCompany("fornecedores.ver")} />
       )}
 
       {tab === "saldo" && product && <ProductStockTab productId={product.id} unit={stockUnit?.code} />}

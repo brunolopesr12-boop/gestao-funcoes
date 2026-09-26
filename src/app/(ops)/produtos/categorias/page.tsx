@@ -44,8 +44,9 @@ export default function CategoriasPage() {
       const sb = supabaseBrowser();
       for (let k = 0; k < order.length; k++) {
         if (order[k].position !== k) {
-          const r = await sb.from("categories").update({ position: k }).eq("id", order[k].id);
+          const r = await sb.from("categories").update({ position: k }).eq("id", order[k].id).select("id");
           if (r.error) throw r.error;
+          if (!r.data?.length) throw new Error("Você não tem permissão para editar categorias.");
         }
       }
       invalidate("categories");

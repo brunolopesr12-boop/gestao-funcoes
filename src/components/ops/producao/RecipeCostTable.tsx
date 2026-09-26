@@ -18,26 +18,7 @@ export function RecipeCostTable({ cost }: { cost: RecipeCost }) {
         (ex.: 1,25 significa 25% de perda na limpeza). O custo usa o custo atual de cada produto.
       </p>
 
-      {/* celular: cartões */}
-      <ul className="divide-y divide-[var(--line)] md:hidden">
-        {items.map((it) => (
-          <li key={it.id} className="py-2.5 text-sm">
-            <div className="flex items-start justify-between gap-2">
-              <p className="min-w-0 flex-1 font-semibold">{it.name}</p>
-              <p className="shrink-0 font-bold tabular-nums">{fmtMoney(it.total_cost)}</p>
-            </div>
-            <p className="text-xs text-slate-400 tabular-nums">
-              Bruto {fmtQty(it.gross_quantity, it.unit)}
-              {it.net_quantity !== null && it.net_quantity !== undefined ? ` · líquido ${fmtQty(it.net_quantity, it.unit)} · perda ${fmtPct(it.loss_pct)} · fator ${fmtQty(it.correction_factor, null, 2)}` : ""}
-            </p>
-            <p className="text-xs text-slate-500 tabular-nums">
-              = {fmtQty(it.quantity_stock, it.stock_unit)} × {fmtMoney(it.unit_cost)}/{it.stock_unit}
-            </p>
-          </li>
-        ))}
-      </ul>
-
-      {/* desktop: tabela */}
+      {/* desktop: tabela (primeiro no DOM para leitores de tela e testes) */}
       <div className="hidden overflow-x-auto md:block">
         <table className="w-full min-w-[720px] text-sm">
           <thead>
@@ -74,6 +55,29 @@ export function RecipeCostTable({ cost }: { cost: RecipeCost }) {
           </tfoot>
         </table>
       </div>
+
+      {/* celular: cartões */}
+      <ul className="divide-y divide-[var(--line)] md:hidden">
+        {items.map((it) => (
+          <li key={it.id} className="py-2.5 text-sm">
+            <div className="flex items-start justify-between gap-2">
+              <p className="min-w-0 flex-1 font-semibold">{it.name}</p>
+              <p className="shrink-0 font-bold tabular-nums">{fmtMoney(it.total_cost)}</p>
+            </div>
+            <p className="text-xs text-slate-400 tabular-nums">
+              Bruto {fmtQty(it.gross_quantity, it.unit)}
+              {it.net_quantity !== null && it.net_quantity !== undefined ? ` · líquido ${fmtQty(it.net_quantity, it.unit)} · perda ${fmtPct(it.loss_pct)} · fator ${fmtQty(it.correction_factor, null, 2)}` : ""}
+            </p>
+            <p className="text-xs text-slate-500 tabular-nums">
+              = {fmtQty(it.quantity_stock, it.stock_unit)} × {fmtMoney(it.unit_cost)}/{it.stock_unit}
+            </p>
+          </li>
+        ))}
+        <li className="flex items-center justify-between py-2.5 text-sm font-bold">
+          <span>Custo total da ficha</span>
+          <span className="tabular-nums">{fmtMoney(cost.total_cost)}</span>
+        </li>
+      </ul>
 
       <div className="mt-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
         <KpiCard label="Custo total" value={fmtMoney(cost.total_cost)} hint={`rendimento ${fmtQty(cost.yield_quantity, unit)}`} tone="slate" />

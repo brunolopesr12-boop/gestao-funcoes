@@ -6,7 +6,7 @@ import { useSuppliers } from "@/lib/ops/hooks";
 import { fmtDate, fmtMoney } from "@/lib/ops/format";
 import type { Unit } from "@/lib/ops/types";
 import type { ProductForm } from "@/lib/ops/modules/cadastros";
-import { Badge, Button, Field, IconButton, NumberInput, TextInput, Toggle, useToast } from "@/components/ops/ui";
+import { Badge, Button, ConfirmSheet, Field, IconButton, NumberInput, TextInput, Toggle, useToast } from "@/components/ops/ui";
 import { SupplierSelect, UnitSelect } from "@/components/ops/pickers";
 import { Icon } from "@/components/ops/Icon";
 
@@ -31,6 +31,7 @@ export function ProductSuppliersSection({
   const [price, setPrice] = useState<number | null>(null);
   const [preferred, setPreferred] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [removing, setRemoving] = useState<SupplierLink | null>(null);
   const nameOf = (id: string, fallback?: string) => fallback ?? suppliers.data?.find((s) => s.id === id)?.name ?? "Fornecedor";
   const unitCode = (id: string) => units.find((u) => u.id === id)?.code ?? "";
 
@@ -89,7 +90,7 @@ export function ProductSuppliersSection({
                 {canEdit && (
                   <>
                     <IconButton icon="star" label={l.preferred ? "Tirar preferência" : "Marcar como preferido"} tone={l.preferred ? "primary" : "soft"} size={36} onClick={() => void onTogglePreferred(l.id, !l.preferred)} />
-                    <IconButton icon="trash" label="Remover fornecedor" tone="danger" size={36} onClick={() => void onRemove(l.id)} />
+                    <IconButton icon="trash" label="Remover fornecedor" tone="danger" size={36} onClick={() => setRemoving(l)} />
                   </>
                 )}
               </li>
@@ -112,6 +113,15 @@ export function ProductSuppliersSection({
           </div>
         )}
       </section>
+
+      <ConfirmSheet
+        open={removing !== null}
+        onClose={() => setRemoving(null)}
+        title="Remover fornecedor do produto"
+        message={removing ? `Remover “${nameOf(removing.supplier_id, removing.supplier_name)}” dos fornecedores deste produto? O histórico de preços continua guardado; o vínculo volta sozinho no próximo recebimento.` : ""}
+        confirmLabel="Remover"
+        onConfirm={() => { if (removing) void onRemove(removing.id); }}
+      />
     </div>
   );
 }

@@ -204,9 +204,9 @@ export function RecipeEditor({ recipeId }: { recipeId: string | null }) {
     if (!rq.data) return;
     setBusy(true);
     try {
-      const id = await duplicateRecipe(rq.data, items, user?.id);
+      const { id, version } = await duplicateRecipe(rq.data, items, user?.id);
       invalidate("recipes");
-      notify(`Nova versão criada (v${Math.max(Number(rq.data.version), 0) + 1}). A anterior continua ativa — inative-a se quiser.`);
+      notify(`Nova versão criada (v${version}). A anterior continua ativa — inative-a se quiser.`);
       setDupOpen(false);
       router.push(`/fichas/${id}`);
     } catch (e) {
@@ -405,7 +405,7 @@ export function RecipeEditor({ recipeId }: { recipeId: string | null }) {
         title="Duplicar como nova versão"
         message={
           <>
-            Será criada uma cópia desta ficha com todos os ingredientes, como <strong>versão {Math.max(Number(rq.data?.version ?? 1), 0) + 1}</strong>, já ativa.
+            Será criada uma cópia desta ficha com todos os ingredientes, como uma <strong>nova versão</strong> (a maior versão deste produto + 1), já ativa.
             A versão atual continua como está — você pode inativá-la depois, se quiser.
           </>
         }

@@ -47,8 +47,9 @@ export function CategoryEditorSheet({
     try {
       const payload = { company_id: company.id, name: name.trim(), emoji: emoji || "📦", color, parent_id: parentId || null, active };
       if (category) {
-        const { error } = await supabaseBrowser().from("categories").update(payload).eq("id", category.id);
-        if (error) throw error;
+        const r = await supabaseBrowser().from("categories").update(payload).eq("id", category.id).select("id");
+        if (r.error) throw r.error;
+        if (!r.data?.length) throw new Error("Você não tem permissão para editar categorias.");
         notify("Categoria salva");
       } else {
         const { error } = await supabaseBrowser().from("categories").insert({ ...payload, position: nextPosition });

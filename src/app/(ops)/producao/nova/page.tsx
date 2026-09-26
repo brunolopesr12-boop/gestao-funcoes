@@ -111,10 +111,11 @@ function NewProduction() {
   const [result, setResult] = useState<ProduceResult | null>(null);
   const [clientOpId, setClientOpId] = useState(() => newId());
 
-  // ficha vinda da URL (?recipe=)
+  // ficha vinda da URL (?recipe=) — só entra automaticamente se estiver ativa
   const fromParam = useRecipe(recipeParam);
+  const paramInactive = Boolean(fromParam.data && !fromParam.data.active);
   useEffect(() => {
-    if (fromParam.data && !recipe && step === 0) chooseRecipe(fromParam.data);
+    if (fromParam.data && fromParam.data.active && !recipe && step === 0) chooseRecipe(fromParam.data);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fromParam.data]);
 
@@ -137,6 +138,8 @@ function NewProduction() {
   const productName = recipe?.products?.name ?? planData?.product_name ?? "";
   const shortages = planData ? effectiveShortages(planData, overrides) : [];
   const plannedOk = Boolean(planned && planned > 0);
+  // o plano mostrado corresponde à quantidade digitada (debounce já aplicado e consulta concluída)
+  const planReady = plannedOk && planned === plannedDeb && Boolean(planData) && !plan.isFetching && Math.abs(Number(planData?.planned) - Number(plannedDeb)) < 1e-9;
 
   async function createPlanned() {
     if (!store || !recipe || !plannedDeb) return;
@@ -226,7 +229,14 @@ function NewProduction() {
             <div className="mt-3"><RecipeStep onPick={chooseRecipe} /></div>
           </>
         ) : (
-          <RecipeStep onPick={chooseRecipe} />
+          <>
+            {paramInactive && fromParam.data && (
+              <InlineAlert tone="amber">
+                A ficha <strong>{fromParam.data.name}</strong> (v{fromParam.data.version}) está inativa e não pode ser produzida. Escolha outra ficha ou reative-a em Fichas técnicas.
+              </InlineAlert>
+            )}
+            <RecipeStep onPick={chooseRecipe} />
+          </>
         )
       )}
 
@@ -272,7 +282,7 @@ function NewProduction() {
 
           <div className="flex gap-3">
             <Button variant="soft" size="lg" onClick={() => setStep(0)}>Voltar</Button>
-            <Button variant="primary" size="lg" full disabled={!plannedOk || !planData || plan.isFetching} onClick={() => setStep(2)}>
+            <Button variant="primary" size="lg" full disabled={!planReady} onClick={() => setStep(2)}>
               Continuar <Icon name="chevronRight" size={18} />
             </Button>
           </div>
