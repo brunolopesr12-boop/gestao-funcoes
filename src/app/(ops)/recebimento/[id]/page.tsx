@@ -157,7 +157,8 @@ export default function ReceiptPage() {
       return (res.data ?? []) as ReceiptItemRow[];
     },
   });
-  useRealtimeInvalidate(["receipts"], [["receipt_items", id]]);
+  // receipts e receipt_items estão na publicação Realtime (0010): itens conferidos por outro usuário aparecem ao vivo
+  useRealtimeInvalidate(["receipts", "receipt_items"]);
   const receipt = rq.data ?? null;
   const items = useMemo(() => iq.data ?? [], [iq.data]);
   const locations = useLocations(receipt?.store_id);

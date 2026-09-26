@@ -306,7 +306,7 @@ export async function copyText(text: string): Promise<boolean> {
 export function supplierIdsMatching(suppliers: Supplier[] | undefined, term: string): string[] {
   const t = term.trim().toLowerCase();
   if (!t || !suppliers) return [];
-  return suppliers.filter((s) => s.name.toLowerCase().includes(t) || s.trade_name.toLowerCase().includes(t)).map((s) => s.id);
+  return suppliers.filter((s) => (s.name ?? "").toLowerCase().includes(t) || (s.trade_name ?? "").toLowerCase().includes(t)).map((s) => s.id);
 }
 
 /** Limpa o termo para uso dentro de filtros `or(...)` do PostgREST. */

@@ -138,7 +138,8 @@ export default function PurchaseOrderPage() {
       return (res.data ?? []) as LinkedReceipt[];
     },
   });
-  useRealtimeInvalidate(["purchase_orders", "receipts"], [["purchase_order_items", id]]);
+  // purchase_orders, purchase_order_items e receipts estão na publicação Realtime (0010)
+  useRealtimeInvalidate(["purchase_orders", "purchase_order_items", "receipts"]);
 
   const po = pq.data ?? null;
   const items = useMemo(() => iq.data ?? [], [iq.data]);
