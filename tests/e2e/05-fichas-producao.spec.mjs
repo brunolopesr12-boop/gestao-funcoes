@@ -14,9 +14,15 @@ test.describe.serial("ficha técnica → produção", () => {
     recheio = await ensureProduct(request, tok, { name: "Recheio de frango", internal_code: "00301", product_kind: "semipronto", stock_unit_id: UNITS.kg, shelf_life_days: 3, shelf_life_open_days: 1 });
     const gel = locations.find((l) => l.kind === "geladeira") ?? locations[0];
     const seco = locations.find((l) => l.kind === "estoque_seco") ?? locations[0];
-    const has = await select(request, tok, `v_stock_by_product?select=quantity&store_id=eq.${store.id}&product_id=eq.${frango.id}`);
-    if (!has[0] || Number(has[0].quantity) === 0) {
+    // cada ingrediente ganha estoque inicial só se estiver zerado (os specs 03/04 já podem ter recebido frango)
+    const qtyOf = async (productId) => {
+      const r = await select(request, tok, `v_stock_by_product?select=quantity&store_id=eq.${store.id}&product_id=eq.${productId}`);
+      return r[0] ? Number(r[0].quantity) : 0;
+    };
+    if ((await qtyOf(frango.id)) === 0) {
       await rpc(request, tok, "ops_create_lot", { p_store: store.id, p_product: frango.id, p_location: gel.id, p_quantity: 20, p_lot_code: "FR-100", p_expires_at: "2026-10-06", p_unit_cost: 2.5, p_origin: "inicial" });
+    }
+    if ((await qtyOf(tempero.id)) === 0) {
       await rpc(request, tok, "ops_create_lot", { p_store: store.id, p_product: tempero.id, p_location: seco.id, p_quantity: 500, p_lot_code: "TP-1", p_expires_at: null, p_unit_cost: 0.02, p_origin: "inicial" });
     }
   });
@@ -59,6 +65,12 @@ test.describe.serial("ficha técnica → produção", () => {
   });
 
   test("produz 3,0 kg planejando 3,2: baixa FEFO, lote com validade de 3 dias e custo real", async ({ page, request }) => {
+    const before = async (productId) => {
+      const r = await select(request, tok, `v_stock_by_product?select=quantity&store_id=eq.${store.id}&product_id=eq.${productId}`);
+      return r[0] ? Number(r[0].quantity) : 0;
+    };
+    const frangoBefore = await before(frango.id);
+    const recheioBefore = await before(recheio.id);
     await login(page);
     await selectStore(page);
     await gotoRetry(page, "/producao/nova");
@@ -87,8 +99,8 @@ test.describe.serial("ficha técnica → produção", () => {
     expect(lot[0].origin).toBe("producao");
     expect(Number(lot[0].unit_cost)).toBe(5.5);
     const frangoBal = await select(request, tok, `v_stock_by_product?select=quantity&store_id=eq.${store.id}&product_id=eq.${frango.id}`);
-    expect(Number(frangoBal[0].quantity)).toBe(15);
+    expect(Number(frangoBal[0].quantity)).toBeCloseTo(frangoBefore - 5, 3); // baixa de 5 kg (FEFO)
     const recheioBal = await select(request, tok, `v_stock_by_product?select=quantity,cost&store_id=eq.${store.id}&product_id=eq.${recheio.id}`);
-    expect(Number(recheioBal[0].quantity)).toBe(3);
+    expect(Number(recheioBal[0].quantity)).toBeCloseTo(recheioBefore + 3, 3);
   });
 });

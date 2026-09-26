@@ -175,7 +175,7 @@ export default function ExecutarChecklistPage() {
                 onClick={() => tap(it)}
                 disabled={!canExecute || busyId === it.id}
                 aria-pressed={it.done}
-                aria-label={it.done ? "Desmarcar" : "Marcar como feito"}
+                aria-label={`${it.done ? "Desmarcar" : "Marcar como feito"}: ${it.text}`}
                 className={`grid h-14 w-14 shrink-0 place-items-center rounded-2xl border-2 text-3xl transition active:scale-95 disabled:opacity-60 ${
                   it.done ? "border-emerald-500 bg-emerald-500/20 text-emerald-300" : "border-[var(--line)] bg-white/5 text-slate-500"
                 }`}

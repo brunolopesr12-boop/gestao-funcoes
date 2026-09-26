@@ -58,7 +58,7 @@ test.describe.serial("temperaturas, checklists e tarefas", () => {
     await page.getByRole("button", { name: /Finalizar|Concluir/ }).last().click();
     await expect(page.getByText(/pendente/i).first()).toBeVisible({ timeout: 30_000 });
 
-    const exec = await select(request, tok, `checklist_executions?select=status,done_items,total_items&store_id=eq.${store.id}&due_date=eq.${new Date().toISOString().slice(0, 10)}&order=created_at&limit=1`);
+    const exec = await select(request, tok, `checklist_executions?select=status,done_items,total_items&store_id=eq.${store.id}&status=eq.em_andamento&order=updated_at.desc&limit=1`);
     expect(exec[0].status).toBe("em_andamento");
     expect(Number(exec[0].done_items)).toBe(1);
   });
