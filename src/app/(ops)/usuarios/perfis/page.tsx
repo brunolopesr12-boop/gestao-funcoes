@@ -52,7 +52,9 @@ export default function PerfisPage() {
 
   const editable = Boolean(role && !role.system && role.company_id === company?.id);
   const isAdminRole = role?.code === "admin";
-  const membersOf = (id: string) => counts.data?.[id] ?? 0;
+  const membersOf = (id: string) => counts.data?.active[id] ?? 0;
+  /** inclui vínculos desativados: o perfil não pode ser excluído enquanto alguém (mesmo inativo) o usa */
+  const anyMemberOf = (id: string) => counts.data?.total[id] ?? 0;
 
   async function savePerms() {
     if (!role) return;
@@ -159,7 +161,7 @@ export default function PerfisPage() {
                       <p className="mt-1 text-xs text-slate-500">{membersOf(role.id)} pessoa(s) com este perfil nesta empresa</p>
                     </div>
                     {editable && (
-                      <Button variant="ghost" className="!text-rose-300" disabled={busy !== null || membersOf(role.id) > 0} title={membersOf(role.id) > 0 ? "Mova as pessoas para outro perfil antes de excluir" : undefined} onClick={() => setConfirmDelete(true)}>
+                      <Button variant="ghost" className="!text-rose-300" disabled={busy !== null || anyMemberOf(role.id) > 0} title={anyMemberOf(role.id) > 0 ? "Mova as pessoas (inclusive desativadas) para outro perfil antes de excluir" : undefined} onClick={() => setConfirmDelete(true)}>
                         <Icon name="trash" size={16} /> Excluir perfil
                       </Button>
                     )}

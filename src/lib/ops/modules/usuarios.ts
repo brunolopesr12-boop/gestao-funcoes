@@ -163,7 +163,7 @@ export function useMembershipsList(f: MembershipFilters, range: { from: number; 
   });
 }
 
-/** Contagem de vínculos por perfil (para a tela de perfis). */
+/** Contagem de vínculos por perfil (para a tela de perfis): ativos (exibição) e todos (bloqueia exclusão). */
 export function useMembershipCounts() {
   const { company } = useSession();
   return useQuery({
@@ -172,9 +172,13 @@ export function useMembershipCounts() {
     staleTime: 30_000,
     queryFn: async () => {
       const rows = unwrap(await supabaseBrowser().from("memberships").select("access_role_id, active").eq("company_id", company!.id)) as { access_role_id: string; active: boolean }[];
-      const counts: Record<string, number> = {};
-      for (const r of rows) if (r.active) counts[r.access_role_id] = (counts[r.access_role_id] ?? 0) + 1;
-      return counts;
+      const active: Record<string, number> = {};
+      const total: Record<string, number> = {};
+      for (const r of rows) {
+        total[r.access_role_id] = (total[r.access_role_id] ?? 0) + 1;
+        if (r.active) active[r.access_role_id] = (active[r.access_role_id] ?? 0) + 1;
+      }
+      return { active, total };
     },
   });
 }

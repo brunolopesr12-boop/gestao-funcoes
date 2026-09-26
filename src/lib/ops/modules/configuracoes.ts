@@ -8,6 +8,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { rpc, unwrap } from "@/lib/ops/rpc";
+import { toOpsError } from "@/lib/ops/errors";
 import { useSession } from "@/lib/ops/session";
 import type { LossReason, Setting, StockLocation, TemperatureEquipment, UUID } from "@/lib/ops/types";
 
@@ -262,7 +263,7 @@ export function useIntegrationEvents(range: { from: number; to: number }, page: 
     placeholderData: (prev) => prev,
     queryFn: async () => {
       const res = await supabaseBrowser().from("integration_events").select("*", { count: "exact" }).eq("company_id", company!.id).order("created_at", { ascending: false }).range(range.from, range.to);
-      if (res.error) throw res.error;
+      if (res.error) throw toOpsError(res.error);
       return { rows: (res.data ?? []) as IntegrationEvent[], total: res.count ?? 0 };
     },
   });

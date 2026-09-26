@@ -287,6 +287,8 @@ export default function EditarUsuarioPage() {
           <SectionCard title="Senha" className="lg:col-span-2">
             {svc.isLoading ? (
               <Skeleton rows={1} />
+            ) : lockAdminEdit ? (
+              <InlineAlert tone="slate" icon="lock">Só um administrador pode redefinir a senha de outro administrador.</InlineAlert>
             ) : svc.data ? (
               <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
                 <PasswordField value={password} onChange={setPassword} label="Nova senha" hint="Redefine a senha de login desta pessoa. Informe a nova senha a ela." />

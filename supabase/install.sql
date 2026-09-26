@@ -5707,6 +5707,8 @@ revoke all on public.v_temperature_equipment_status from anon;
 --    · ops_store_create     : cria a unidade e os 4 locais de estoque padrão
 --                             em uma única transação (exige configuracoes.editar)
 --    · ops_membership_guard : impede que a empresa fique sem administrador ativo
+--    · policies restritivas : só administrador concede/altera/remove o perfil admin
+--    · realtime             : tabelas observadas pelas telas deste módulo
 --    · auditoria            : memberships, membership_stores, membership_permissions,
 --                             access_roles, role_permissions, stores, stock_locations,
 --                             settings, api_keys (quem mudou o que, e quando)
@@ -5795,6 +5797,30 @@ $fn$;
 drop trigger if exists trg_memberships_guard on public.memberships;
 create trigger trg_memberships_guard before update or delete on public.memberships
   for each row execute function public.ops_membership_guard();
+
+-- ---------------------------------------------------------------------
+-- Só administradores concedem, alteram ou removem o perfil de administrador.
+-- Policies RESTRITIVAS: somam-se às permissivas de 0001 (memberships_write),
+-- então um gerente com usuarios.gerenciar continua cuidando dos demais
+-- perfis, mas não promove ninguém (nem a si mesmo) a admin nem mexe no
+-- vínculo de um admin. As funções security definer (bootstrap, criação de
+-- empresa, aceite de convite) rodam como dono da tabela e não passam por RLS.
+-- ---------------------------------------------------------------------
+create or replace function public.ops_admin_role_id()
+returns uuid language sql stable security definer set search_path = public as $$
+  select id from public.access_roles where company_id is null and code = 'admin'
+$$;
+
+drop policy if exists memberships_admin_insert_guard on public.memberships;
+create policy memberships_admin_insert_guard on public.memberships as restrictive for insert to authenticated
+  with check (access_role_id <> public.ops_admin_role_id() or public.ops_is_admin(company_id));
+drop policy if exists memberships_admin_update_guard on public.memberships;
+create policy memberships_admin_update_guard on public.memberships as restrictive for update to authenticated
+  using (access_role_id <> public.ops_admin_role_id() or public.ops_is_admin(company_id))
+  with check (access_role_id <> public.ops_admin_role_id() or public.ops_is_admin(company_id));
+drop policy if exists memberships_admin_delete_guard on public.memberships;
+create policy memberships_admin_delete_guard on public.memberships as restrictive for delete to authenticated
+  using (access_role_id <> public.ops_admin_role_id() or public.ops_is_admin(company_id));
 
 -- ---------------------------------------------------------------------
 -- Auditoria de acessos e configurações
@@ -5929,4 +5955,24 @@ do $$ begin
   perform public.ops_ensure_audit('stock_locations');
 end $$;
 
-grant select on public.v_memberships to authenticated, service_role;
+-- ---------------------------------------------------------------------
+-- Realtime: tabelas que as telas de usuários/configurações observam
+-- (mesmo padrão da migration 0010; ignorado se o Realtime não existir)
+-- ---------------------------------------------------------------------
+do $blk$
+declare t text;
+begin
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
+    foreach t in array array['membership_stores','membership_permissions','access_roles','role_permissions','profiles',
+                             'loss_reasons','api_keys','integration_events'] loop
+      if not exists (
+        select 1 from pg_publication_tables
+        where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t
+      ) then
+        execute format('alter publication supabase_realtime add table public.%I', t);
+      end if;
+    end loop;
+  end if;
+exception when others then
+  raise notice 'Realtime não configurado: %', sqlerrm;
+end $blk$;

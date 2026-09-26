@@ -41,15 +41,22 @@ export function NewUserSheet({ open, onClose }: { open: boolean; onClose: () => 
 
   const roleOptions = useMemo(() => (roles.data ?? []).filter((r) => isAdmin || r.code !== "admin"), [roles.data, isAdmin]);
 
+  // ao abrir: limpa o formulário
   useEffect(() => {
     if (!open) return;
-    setMode(serviceRole ? "senha" : "convite");
-    setName(""); setEmail(""); setPhone("");
+    setName(""); setEmail(""); setPhone(""); setRoleId("");
     setAllStores(true); setStoreIds([]); setPassword(generatePassword(10)); setDone(null);
-    const def = (roles.data ?? []).find((r) => r.code === "funcionario") ?? roleOptions[0];
-    setRoleId(def?.id ?? "");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, serviceRole, roles.data]);
+  }, [open]);
+  // modo padrão assim que souber se a chave de serviço existe (não mexe no que já foi digitado)
+  useEffect(() => {
+    if (open && !svc.isLoading) setMode(serviceRole ? "senha" : "convite");
+  }, [open, serviceRole, svc.isLoading]);
+  // perfil padrão ("funcionario") assim que os perfis carregarem, se ainda não foi escolhido
+  useEffect(() => {
+    if (!open || roleId || roleOptions.length === 0) return;
+    const def = roleOptions.find((r) => r.code === "funcionario") ?? roleOptions[0];
+    setRoleId(def.id);
+  }, [open, roleId, roleOptions]);
 
   const validate = (): string | null => {
     if (!isValidEmail(email)) return "Informe um e-mail válido.";
@@ -184,15 +191,16 @@ export function NewUserSheet({ open, onClose }: { open: boolean; onClose: () => 
           <Field label="E-mail" hint={mode === "convite" ? "A pessoa vai criar a conta com este e-mail exatamente." : undefined}>
             <TextInput type="email" inputMode="email" autoCapitalize="none" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="nome@empresa.com" autoFocus />
           </Field>
-          <Field label={mode === "senha" ? "Nome completo" : "Nome (opcional)"} hint={mode === "convite" ? "Só para você identificar; a pessoa informa o nome ao criar a conta." : undefined}>
-            <TextInput value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Maria da Silva" />
-          </Field>
           {mode === "senha" && (
             <>
+              <Field label="Nome completo">
+                <TextInput value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Maria da Silva" />
+              </Field>
               <Field label="Telefone (opcional)"><TextInput inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(00) 00000-0000" /></Field>
               <PasswordField value={password} onChange={setPassword} />
             </>
           )}
+          {mode === "convite" && <p className="mb-4 text-xs text-slate-500">Nome e telefone são informados pela própria pessoa ao criar a conta.</p>}
           <Field label="Perfil de acesso" hint={roleOptions.find((r) => r.id === roleId)?.description || "Define o que a pessoa pode fazer. Ajustes finos ficam na tela do usuário."}>
             <Select value={roleId} onChange={(e) => setRoleId(e.target.value)}>
               {roleOptions.map((r) => <option key={r.id} value={r.id}>{r.name}{r.system ? "" : " (da empresa)"}</option>)}

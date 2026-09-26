@@ -64,6 +64,12 @@ async function canManage(caller: Caller, companyId: string): Promise<boolean> {
   return !error && data === true;
 }
 
+/** O chamador é administrador desta empresa? (só admin cria/redefine senha de outro admin) */
+async function isAdminOf(caller: Caller, companyId: string): Promise<boolean> {
+  const { data, error } = await caller.sb.rpc("ops_is_admin", { p_company: companyId });
+  return !error && data === true;
+}
+
 /** Procura um usuário do Auth pelo e-mail (paginando a lista). */
 async function findAuthUserByEmail(svc: SupabaseClient, email: string): Promise<User | null> {
   const target = email.toLowerCase();
@@ -97,9 +103,13 @@ export async function POST(req: NextRequest) {
   const svc = supabaseService();
 
   // perfil de acesso: do sistema ou da própria empresa
-  const { data: role } = await svc.from("access_roles").select("id, company_id").eq("id", body.access_role_id).maybeSingle();
+  const { data: role } = await svc.from("access_roles").select("id, code, company_id").eq("id", body.access_role_id).maybeSingle();
   if (!role || (role.company_id !== null && role.company_id !== body.company_id)) {
     return json(400, { ok: false, erro: "Perfil de acesso inválido para esta empresa." });
+  }
+  // o perfil de administrador só pode ser concedido por outro administrador (o banco também bloqueia)
+  if (role.company_id === null && role.code === "admin" && !(await isAdminOf(caller, body.company_id))) {
+    return json(403, { ok: false, erro: "Só um administrador pode criar outro administrador." });
   }
   // unidades: todas da empresa
   let storeIds: string[] = [];
@@ -199,8 +209,22 @@ export async function PATCH(req: NextRequest) {
   if (!isServiceRoleConfigured()) return json(501, { ok: false, erro: NO_SERVICE_ROLE });
   const svc = supabaseService();
 
-  const { data: member } = await svc.from("memberships").select("id").eq("user_id", user_id).in("company_id", allowed).limit(1).maybeSingle();
-  if (!member) return json(403, { ok: false, erro: "Esta pessoa não é membro de uma empresa que você gerencia." });
+  // vínculos da pessoa nas empresas que o chamador gerencia; se ela for admin em alguma delas,
+  // só outro admin dessa empresa pode redefinir a senha (um gerente não pode assumir a conta de um admin)
+  const { data: members, error: me } = await svc
+    .from("memberships")
+    .select("id, company_id, access_roles(code)")
+    .eq("user_id", user_id)
+    .in("company_id", allowed);
+  if (me) return json(502, { ok: false, erro: me.message });
+  const rows = (members ?? []) as { id: string; company_id: string; access_roles: { code: string } | { code: string }[] | null }[];
+  if (rows.length === 0) return json(403, { ok: false, erro: "Esta pessoa não é membro de uma empresa que você gerencia." });
+  for (const m of rows) {
+    const code = Array.isArray(m.access_roles) ? m.access_roles[0]?.code : m.access_roles?.code;
+    if (code === "admin" && !(await isAdminOf(caller, m.company_id))) {
+      return json(403, { ok: false, erro: "Só um administrador pode redefinir a senha de outro administrador." });
+    }
+  }
 
   const { error } = await svc.auth.admin.updateUserById(user_id, { password });
   if (error) return json(502, { ok: false, erro: `Não foi possível redefinir a senha: ${error.message}` });

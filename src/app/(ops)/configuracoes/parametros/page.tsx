@@ -86,7 +86,8 @@ export default function ParametrosPage() {
     );
   }
 
-  const OverrideTag = ({ k }: { k: ParamKey }) =>
+  /** etiqueta "definido nesta unidade / herdado" (função de render, não componente: evita remontar a cada render) */
+  const overrideTag = (k: ParamKey) =>
     storeId ? (
       <span className="mb-2 flex items-center gap-2 text-[11px]">
         {isOverride(k) ? (
@@ -121,7 +122,7 @@ export default function ParametrosPage() {
       ) : (
         <>
           <SectionCard title="Estoque e custo" className="mb-4">
-            <OverrideTag k="estoque.metodo_custo" />
+            {overrideTag("estoque.metodo_custo")}
             <Label hint="Como o custo do produto é atualizado a cada recebimento.">Método de custo</Label>
             <Choice<CostMethod>
               value={form["estoque.metodo_custo"]}
@@ -131,21 +132,21 @@ export default function ParametrosPage() {
                 { value: "ultimo", label: "Último preço", hint: "Custo = preço da última compra" },
               ]}
             />
-            <OverrideTag k="estoque.permitir_negativo" />
+            {overrideTag("estoque.permitir_negativo")}
             <Toggle checked={form["estoque.permitir_negativo"]} onChange={(v) => set("estoque.permitir_negativo", v)} label="Permitir estoque negativo" hint="Se ligado, consumos e perdas passam mesmo sem saldo. Recomendado: desligado." />
-            <OverrideTag k="estoque.permitir_consumo_vencido" />
+            {overrideTag("estoque.permitir_consumo_vencido")}
             <Toggle checked={form["estoque.permitir_consumo_vencido"]} onChange={(v) => set("estoque.permitir_consumo_vencido", v)} label="Permitir consumir lote vencido" hint="Se desligado, lotes vencidos só podem ser descartados como perda." />
           </SectionCard>
 
           <SectionCard title="Validade" className="mb-4">
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <OverrideTag k="validade.dias_alerta" />
+                {overrideTag("validade.dias_alerta")}
                 <Label hint="Lotes que vencem dentro deste prazo aparecem como “vencendo”.">Dias para alerta de validade</Label>
                 <NumberInput value={form["validade.dias_alerta"]} onChange={(v) => set("validade.dias_alerta", Math.max(0, Math.round(v ?? 0)))} inputMode="numeric" suffix="dias" big min={0} />
               </div>
               <div>
-                <OverrideTag k="validade.dias_critico" />
+                {overrideTag("validade.dias_critico")}
                 <Label hint="Dentro deste prazo o alerta vira crítico.">Dias para alerta crítico</Label>
                 <NumberInput value={form["validade.dias_critico"]} onChange={(v) => set("validade.dias_critico", Math.max(0, Math.round(v ?? 0)))} inputMode="numeric" suffix="dias" big min={0} />
               </div>
@@ -153,7 +154,7 @@ export default function ParametrosPage() {
           </SectionCard>
 
           <SectionCard title="Etiquetas e impressora" className="mb-4">
-            <OverrideTag k="etiquetas.impressora" />
+            {overrideTag("etiquetas.impressora")}
             <Label hint="Navegador: imprime pelo diálogo do sistema (qualquer impressora). ZPL: gera o código para impressoras Zebra-compatíveis.">Impressora padrão</Label>
             <Choice<PrinterKind>
               value={printer.tipo}
@@ -176,18 +177,18 @@ export default function ParametrosPage() {
           </SectionCard>
 
           <SectionCard title="Temperaturas" className="mb-4">
-            <OverrideTag k="temperaturas.intervalo_min" />
+            {overrideTag("temperaturas.intervalo_min")}
             <Label hint="Padrão para equipamentos novos; cada equipamento pode ter o seu.">Intervalo entre medições</Label>
             <NumberInput value={form["temperaturas.intervalo_min"]} onChange={(v) => set("temperaturas.intervalo_min", Math.max(0, Math.round(v ?? 0)))} inputMode="numeric" suffix="min" big min={5} />
           </SectionCard>
 
           <SectionCard title="Inventário" className="mb-4">
-            <OverrideTag k="inventario.nao_contado_zera" />
+            {overrideTag("inventario.nao_contado_zera")}
             <Toggle checked={form["inventario.nao_contado_zera"]} onChange={(v) => set("inventario.nao_contado_zera", v)} label="Item não contado vira zero" hint="Ao finalizar a contagem, o que não foi contado é considerado zero (gera ajuste). Desligado: mantém o saldo teórico." />
           </SectionCard>
 
           <SectionCard title="Produção" className="mb-4">
-            <OverrideTag k="producao.consumo_por" />
+            {overrideTag("producao.consumo_por")}
             <Label hint="Informativo: como o sistema calcula o consumo de ingredientes ao concluir a produção.">Consumo de ingredientes</Label>
             <Choice<ConsumptionBasis>
               value={form["producao.consumo_por"]}
@@ -200,7 +201,7 @@ export default function ParametrosPage() {
           </SectionCard>
 
           <SectionCard title="Alertas" className="mb-4">
-            <OverrideTag k="alertas.email" />
+            {overrideTag("alertas.email")}
             <Toggle checked={form["alertas.email"]} onChange={(v) => set("alertas.email", v)} label="Alertas por e-mail (reservado)" hint="Reservado para uso futuro: o envio por e-mail ainda não está disponível nesta versão. Os alertas aparecem no painel e em Alertas." />
             <InlineAlert tone="slate" icon="info">Hoje os alertas são exibidos dentro do sistema (sino e painel). Esta chave apenas guarda a preferência.</InlineAlert>
           </SectionCard>
