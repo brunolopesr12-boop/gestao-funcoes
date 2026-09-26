@@ -48,7 +48,7 @@ test.describe.serial("recebimento → estoque → consumo", () => {
     await page.goto(receiptUrl);
     await page.getByRole("button", { name: "Finalizar recebimento" }).click();
     await page.getByRole("button", { name: "Finalizar e dar entrada" }).click();
-    await expect(page.getByText(/Aprovado/).first()).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByRole("heading", { name: /Recebimento .* finalizado/ })).toBeVisible({ timeout: 60_000 });
     await expect(page.getByRole("link", { name: /FR-001/ }).first()).toBeVisible();
 
     await page.goto("/estoque");

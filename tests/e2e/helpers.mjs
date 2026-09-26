@@ -98,3 +98,31 @@ export async function selectStore(page, label = "Vila Rica — Matriz") {
     }
   }
 }
+
+/** Navega com nova tentativa quando o servidor de desenvolvimento ainda está compilando a rota. */
+export async function gotoRetry(page, url, attempts = 4) {
+  let last;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await page.goto(url, { waitUntil: "domcontentloaded" });
+      if (!res || res.status() < 500) return res;
+      last = new Error(`HTTP ${res.status()} em ${url}`);
+    } catch (e) {
+      last = e;
+    }
+    await page.waitForTimeout(1500 * (i + 1));
+  }
+  throw last;
+}
+
+/** Pré-compila rotas do dev server (evita falhas de navegação durante os testes). */
+export async function warmRoutes(page, routes) {
+  for (const r of routes) {
+    try {
+      await gotoRetry(page, r, 3);
+      await page.waitForTimeout(300);
+    } catch {
+      /* rota inexistente ou ainda com erro: o teste correspondente vai apontar */
+    }
+  }
+}

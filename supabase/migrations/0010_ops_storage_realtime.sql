@@ -36,8 +36,10 @@ begin
   if not exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
     create publication supabase_realtime;
   end if;
-  foreach t in array array['alerts','tasks','stock_items','productions','receipts','checklist_executions',
-                           'checklist_execution_items','inventory_items','inventory_counts','temperature_logs','purchase_orders'] loop
+  foreach t in array array['alerts','tasks','stock_items','stock_lots','productions','receipts','receipt_items','checklist_executions',
+                           'checklist_execution_items','inventory_items','inventory_counts','temperature_logs','purchase_orders','purchase_order_items',
+                           'products','categories','units','suppliers','supplier_products','stock_locations','temperature_equipment',
+                           'recipes','recipe_items','checklists','checklist_tasks','memberships','losses','labels','label_templates','settings','stores'] loop
     if not exists (
       select 1 from pg_publication_tables
       where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t
