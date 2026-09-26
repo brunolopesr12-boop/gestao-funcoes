@@ -223,48 +223,6 @@ export async function duplicateRecipe(recipe: RecipeRow, _items: RecipeItemRow[]
   if (error) throw toOpsError(error);
   const r = data as { id: string; version: number };
   return { id: r.id, version: Number(r.version) };
-}> {
-  const sb = supabaseBrowser();
-  const last = unwrap(
-    await sb.from("recipes").select("version").eq("company_id", recipe.company_id).eq("product_id", recipe.product_id).order("version", { ascending: false }).limit(1),
-  ) as { version: number }[];
-  const version = Math.max(Number(last[0]?.version ?? 0), Number(recipe.version)) + 1;
-  const created = unwrap(
-    await sb
-      .from("recipes")
-      .insert({
-        company_id: recipe.company_id,
-        product_id: recipe.product_id,
-        name: recipe.name,
-        version,
-        yield_quantity: recipe.yield_quantity,
-        portion_quantity: recipe.portion_quantity,
-        prep_time_min: recipe.prep_time_min,
-        shelf_life_days: recipe.shelf_life_days,
-        instructions: recipe.instructions,
-        notes: recipe.notes,
-        active: true,
-        created_by: userId ?? null,
-      })
-      .select("id")
-      .single(),
-  ) as { id: string };
-  if (items.length > 0) {
-    unwrap(
-      await sb.from("recipe_items").insert(
-        items.map((it, i) => ({
-          recipe_id: created.id,
-          ingredient_product_id: it.ingredient_product_id,
-          gross_quantity: it.gross_quantity,
-          unit_id: it.unit_id,
-          net_quantity: it.net_quantity,
-          notes: it.notes,
-          position: i,
-        })),
-      ),
-    );
-  }
-  return { id: created.id, version };
 }
 
 /* ------------------------------------------------------------------ */
