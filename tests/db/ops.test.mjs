@@ -43,6 +43,20 @@ async function as(uid, sql, params = []) {
     throw e;
   }
 }
+/** executa como a chave de serviço (cron/integrações) */
+async function asService(sql, params = []) {
+  await client.query("begin");
+  try {
+    await client.query("set local role service_role");
+    await client.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ role: "service_role" })]);
+    const r = await client.query(sql, params);
+    await client.query("commit");
+    return r;
+  } catch (e) {
+    await client.query("rollback");
+    throw e;
+  }
+}
 async function anon(sql, params = []) {
   await client.query("begin");
   try {
@@ -483,6 +497,16 @@ test("painel e relatórios", async () => {
     assert.ok(acts.rows.some((r) => r.action === a), `auditoria sem ação ${a}`);
   }
   assert.equal(Number(await val(U.func, "select count(*) from public.audit_logs")), 0, "funcionário não vê auditoria");
+});
+
+test("chave de serviço: cron consegue gerar checklists e atualizar alertas sem usuário", async () => {
+  const r = (await asService("select public.ops_refresh_alerts($1) as r", [ctx.store1])).rows[0].r;
+  assert.equal(r.ok, true);
+  const n = Number((await asService("select public.ops_generate_checklists($1, current_date + 1) as n", [ctx.store1])).rows[0].n);
+  assert.ok(n >= 2, "checklists de amanhã gerados pelo cron");
+  // integração: baixa por API (chave de serviço) fica auditada com usuário vazio
+  const c = (await asService("select public.ops_consume($1, $2, 0.5, null, null, 'venda PDV', 'via API', $3) as r", [ctx.store1, ctx.frango, "20000000-0000-4000-8000-000000000010"])).rows[0].r;
+  assert.equal(c.ok, true);
 });
 
 test("onboarding: criar empresa nova torna o criador admin e aplica padrões; ninguém mais vê", async () => {
