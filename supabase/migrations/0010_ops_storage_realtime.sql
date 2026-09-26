@@ -39,7 +39,8 @@ begin
   foreach t in array array['alerts','tasks','stock_items','stock_lots','productions','receipts','receipt_items','checklist_executions',
                            'checklist_execution_items','inventory_items','inventory_counts','temperature_logs','purchase_orders','purchase_order_items',
                            'products','categories','units','suppliers','supplier_products','stock_locations','temperature_equipment',
-                           'recipes','recipe_items','checklists','checklist_tasks','memberships','losses','labels','label_templates','settings','stores'] loop
+                           'recipes','recipe_items','checklists','checklist_tasks','memberships','losses','labels','label_templates','settings','stores',
+                           'supplier_price_history','transfers','stock_movements'] loop
     if not exists (
       select 1 from pg_publication_tables
       where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t

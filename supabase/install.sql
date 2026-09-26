@@ -4766,7 +4766,7 @@ where v.active and (v.level <> 'normal' or (v.suggested_purchase > 0 and v.quant
 
 drop view if exists public.v_expiring_lots cascade;
 create view public.v_expiring_lots with (security_invoker = true) as
-select l.id as lot_id, l.store_id, l.company_id, l.product_id, p.name as product_name, p.internal_code, c.name as category_name, u.code as unit,
+select l.id as lot_id, l.store_id, l.company_id, l.product_id, p.name as product_name, p.internal_code, p.category_id, c.name as category_name, u.code as unit,
        l.lot_code, l.origin, l.expires_at, (l.expires_at - current_date) as days_to_expire, l.status as lot_status, l.unit_cost,
        l.supplier_id, sup.name as supplier_name,
        coalesce(sum(si.quantity), 0) as quantity,
@@ -4786,7 +4786,7 @@ left join public.suppliers sup on sup.id = l.supplier_id
 join public.stock_items si on si.lot_id = l.id and si.quantity > 0
 join public.stock_locations loc on loc.id = si.location_id
 where l.expires_at is not null
-group by l.id, p.name, p.internal_code, c.name, u.code, sup.name;
+group by l.id, p.name, p.internal_code, p.category_id, c.name, u.code, sup.name;
 
 drop view if exists public.v_movements cascade;
 create view public.v_movements with (security_invoker = true) as
@@ -5063,7 +5063,8 @@ begin
   foreach t in array array['alerts','tasks','stock_items','stock_lots','productions','receipts','receipt_items','checklist_executions',
                            'checklist_execution_items','inventory_items','inventory_counts','temperature_logs','purchase_orders','purchase_order_items',
                            'products','categories','units','suppliers','supplier_products','stock_locations','temperature_equipment',
-                           'recipes','recipe_items','checklists','checklist_tasks','memberships','losses','labels','label_templates','settings','stores'] loop
+                           'recipes','recipe_items','checklists','checklist_tasks','memberships','losses','labels','label_templates','settings','stores',
+                           'supplier_price_history','transfers','stock_movements'] loop
     if not exists (
       select 1 from pg_publication_tables
       where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t

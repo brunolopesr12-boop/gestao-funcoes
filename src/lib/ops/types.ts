@@ -80,7 +80,7 @@ export type StockByProduct = {
   suggested_purchase_units?: number; estimated_cost?: number;
 };
 export type ExpiringLot = {
-  lot_id: UUID; store_id: UUID; company_id: UUID; product_id: UUID; product_name: string; internal_code: string; category_name: string | null; unit: string;
+  lot_id: UUID; store_id: UUID; company_id: UUID; product_id: UUID; product_name: string; internal_code: string; category_id: UUID | null; category_name: string | null; unit: string;
   lot_code: string; origin: LotOrigin; expires_at: string; days_to_expire: number; lot_status: LotStatus; unit_cost: number; supplier_id: UUID | null;
   supplier_name: string | null; quantity: number; total_value: number; locations: string; expiry_status: ExpiryStatus;
 };
