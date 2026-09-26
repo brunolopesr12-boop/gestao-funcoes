@@ -5252,98 +5252,231 @@ grant select on public.v_categories to authenticated, service_role;
 
 
 -- ===================================================================
--- migration: 0012_etiquetas.sql
+-- migration: 0013_recebimento.sql
 -- ===================================================================
 
 -- =====================================================================
---  0012 · ETIQUETAS — apoio à interface de impressão e modelos
---    · ops_label_print(...)                      : registra a etiqueta emitida na tabela
---        imutável `labels` (a interface nunca escreve nela diretamente). Exige
---        etiquetas.imprimir na unidade e confere que modelo/lote são da mesma empresa.
---    · ops_label_template_set_default(p_template): marca o modelo como padrão do seu tipo
---        e desmarca os demais do mesmo tipo/empresa em uma só transação.
---        Exige etiquetas.editar_modelos.
---    · ops_label_templates_seed_defaults(p_company): cria os modelos de fábrica (0008)
---        quando a empresa ainda não tem nenhum — chamável pela tela Modelos.
---        Exige etiquetas.editar_modelos.
---  Idempotente (create or replace). Sem tabelas novas; RLS de 0008 permanece.
+--  0012 · RECEBIMENTO / COMPRAS / REPOSIÇÃO — apoio à interface
+--    · v_replenishment_ranked : v_replenishment + level_rank (ordenação
+--      por gravidade do nível no banco, com paginação)
+--    · ops_po_create_batch    : cria pedidos de compra (rascunho) em lote,
+--      agrupando os itens por fornecedor, em uma única transação
 -- =====================================================================
 
-create or replace function public.ops_label_print(
-  p_store    uuid,
-  p_template uuid,
-  p_product  uuid,
-  p_lot      uuid,
-  p_kind     text,
-  p_copies   integer,
-  p_payload  jsonb default '{}'::jsonb
-) returns uuid language plpgsql security definer set search_path = public as $fn$
-declare v_company uuid; v_id uuid; v_kind text;
+-- ---------------------------------------------------------------------
+-- Reposição ordenável por nível (0 = crítico … 3 = normal)
+-- ---------------------------------------------------------------------
+drop view if exists public.v_replenishment_ranked;
+create view public.v_replenishment_ranked with (security_invoker = true) as
+select v.*,
+       case v.level when 'critico' then 0 when 'baixo' then 1 when 'atencao' then 2 else 3 end as level_rank
+from public.v_replenishment v;
+grant select on public.v_replenishment_ranked to authenticated, service_role;
+
+-- ---------------------------------------------------------------------
+-- Pedidos de compra em lote a partir da reposição
+--   p_items: [{ product_id, supplier_id?, quantity, unit_id?, estimated_price? }]
+--   Agrupa por supplier_id (itens sem fornecedor viram um pedido sem fornecedor).
+--   Devolve: [{ id, number, supplier_id, supplier_name, items }]
+-- ---------------------------------------------------------------------
+create or replace function public.ops_po_create_batch(p_store uuid, p_items jsonb, p_notes text default '')
+returns jsonb language plpgsql security definer set search_path = public as $fn$
+declare
+  v_company uuid; v_sup uuid; v_po uuid; v_num text; v_sup_name text; v_pos int; v_count int;
+  it jsonb; v_qty numeric; v_product uuid; v_result jsonb := '[]'::jsonb;
 begin
-  perform public.ops_require(p_store, 'etiquetas.imprimir');
+  perform public.ops_require(p_store, 'compras.criar');
+  if p_items is null or jsonb_typeof(p_items) <> 'array' or jsonb_array_length(p_items) = 0 then
+    raise exception 'Selecione pelo menos um produto.';
+  end if;
   v_company := public.ops_store_company(p_store);
-  if v_company is null then raise exception 'Unidade não encontrada.'; end if;
-  if p_copies is null or p_copies < 1 then raise exception 'Informe pelo menos 1 cópia.'; end if;
-  if p_copies > 500 then raise exception 'Máximo de 500 cópias por vez.'; end if;
-  v_kind := coalesce(nullif(trim(p_kind), ''), 'generica');
-  if v_kind not in ('producao','abertura','congelamento','descongelamento','fracionamento','armazenamento','recebimento','generica') then
-    raise exception 'Tipo de etiqueta inválido: %', v_kind;
-  end if;
-  if p_template is not null and not exists (select 1 from public.label_templates t where t.id = p_template and t.company_id = v_company) then
-    raise exception 'Modelo de etiqueta de outra empresa.';
-  end if;
-  if p_lot is not null and not exists (select 1 from public.stock_lots l where l.id = p_lot and l.company_id = v_company) then
-    raise exception 'Lote de outra empresa.';
-  end if;
-  if p_product is not null and not exists (select 1 from public.products p where p.id = p_product and p.company_id = v_company) then
-    raise exception 'Produto de outra empresa.';
-  end if;
 
-  insert into public.labels (company_id, store_id, template_id, product_id, lot_id, kind, copies, payload)
-  values (v_company, p_store, p_template, p_product, p_lot, v_kind, p_copies, coalesce(p_payload, '{}'::jsonb))
-  returning id into v_id;
-  return v_id;
+  for v_sup in
+    select distinct nullif(i->>'supplier_id', '')::uuid from jsonb_array_elements(p_items) i
+  loop
+    if v_sup is not null and not exists (select 1 from public.suppliers where id = v_sup and company_id = v_company) then
+      raise exception 'Fornecedor inválido.';
+    end if;
+
+    insert into public.purchase_orders (company_id, store_id, supplier_id, notes)
+    values (v_company, p_store, v_sup, coalesce(p_notes, ''))
+    returning id, number into v_po, v_num;
+
+    v_pos := 0; v_count := 0;
+    for it in
+      select i from jsonb_array_elements(p_items) i
+      where nullif(i->>'supplier_id', '')::uuid is not distinct from v_sup
+    loop
+      v_product := nullif(it->>'product_id', '')::uuid;
+      v_qty := coalesce(nullif(it->>'quantity', '')::numeric, 0);
+      if v_product is null or v_qty <= 0 then continue; end if;
+      if not exists (select 1 from public.products where id = v_product and company_id = v_company) then
+        raise exception 'Produto inválido no pedido.';
+      end if;
+      insert into public.purchase_order_items (purchase_order_id, product_id, quantity, unit_id, estimated_price, position)
+      values (v_po, v_product, v_qty, nullif(it->>'unit_id', '')::uuid, coalesce(nullif(it->>'estimated_price', '')::numeric, 0), v_pos);
+      v_pos := v_pos + 1; v_count := v_count + 1;
+    end loop;
+
+    if v_count = 0 then
+      delete from public.purchase_orders where id = v_po;
+      continue;
+    end if;
+
+    v_sup_name := null;
+    if v_sup is not null then select name into v_sup_name from public.suppliers where id = v_sup; end if;
+    v_result := v_result || jsonb_build_object('id', v_po, 'number', v_num, 'supplier_id', v_sup, 'supplier_name', coalesce(v_sup_name, ''), 'items', v_count);
+  end loop;
+
+  if jsonb_array_length(v_result) = 0 then
+    raise exception 'Nenhum item válido para gerar pedido (quantidade precisa ser maior que zero).';
+  end if;
+  return v_result;
 end;
 $fn$;
 
-create or replace function public.ops_label_template_set_default(p_template uuid)
-returns void language plpgsql security definer set search_path = public as $fn$
-declare v_t record;
-begin
-  select id, company_id, kind into v_t from public.label_templates where id = p_template;
-  if v_t.id is null then raise exception 'Modelo de etiqueta não encontrado.'; end if;
-  perform public.ops_require_company(v_t.company_id, 'etiquetas.editar_modelos');
-  update public.label_templates
-     set is_default = false
-   where company_id = v_t.company_id and kind = v_t.kind and is_default and id <> p_template;
-  update public.label_templates
-     set is_default = true, active = true
-   where id = p_template;
-end;
-$fn$;
-
-create or replace function public.ops_label_templates_seed_defaults(p_company uuid)
-returns integer language plpgsql security definer set search_path = public as $fn$
-declare v_n integer;
-begin
-  perform public.ops_require_company(p_company, 'etiquetas.editar_modelos');
-  perform public.ops_seed_label_templates(p_company);
-  select count(*) into v_n from public.label_templates where company_id = p_company;
-  return v_n;
-end;
-$fn$;
-
-grant execute on function public.ops_label_print(uuid, uuid, uuid, uuid, text, integer, jsonb) to authenticated, service_role;
-grant execute on function public.ops_label_template_set_default(uuid) to authenticated, service_role;
-grant execute on function public.ops_label_templates_seed_defaults(uuid) to authenticated, service_role;
-revoke execute on function public.ops_label_print(uuid, uuid, uuid, uuid, text, integer, jsonb) from anon;
-revoke execute on function public.ops_label_template_set_default(uuid) from anon;
-revoke execute on function public.ops_label_templates_seed_defaults(uuid) from anon;
+grant execute on function public.ops_po_create_batch(uuid, jsonb, text) to authenticated, service_role;
 
 
 
 -- ===================================================================
--- migration: 0012_gestao.sql
+-- migration: 0014_inventario_perdas.sql
+-- ===================================================================
+
+-- =====================================================================
+--  0012 · INVENTÁRIO / PERDAS — apoio à interface
+--    · ops_losses_kpis : indicadores do período da tela /perdas, com os
+--      MESMOS filtros da lista (motivo, produto, funcionário, busca):
+--      total R$, quantidade, nº de registros, motivo que mais perdeu e o
+--      total do período anterior (mesma duração) para comparação.
+--      Exige perdas.ver na unidade. Idempotente.
+-- =====================================================================
+create or replace function public.ops_losses_kpis(
+  p_store uuid, p_from date, p_to date,
+  p_reason uuid default null, p_product uuid default null, p_user text default '', p_term text default ''
+) returns jsonb language plpgsql stable security definer set search_path = public as $fn$
+declare
+  v_days int; v_prev_from date; v_prev_to date;
+  v_count bigint; v_cost numeric; v_qty numeric; v_prev_cost numeric; v_prev_count bigint;
+  v_top_name text; v_top_cost numeric; v_top_count bigint;
+  v_like text; v_user text;
+begin
+  perform public.ops_require(p_store, 'perdas.ver');
+  if p_from is null or p_to is null or p_to < p_from then
+    raise exception 'Período inválido.';
+  end if;
+  v_days := (p_to - p_from) + 1;
+  v_prev_to := p_from - 1;
+  v_prev_from := v_prev_to - v_days + 1;
+  v_like := case when coalesce(trim(p_term), '') = '' then null else '%' || regexp_replace(trim(p_term), '[%_]', ' ', 'g') || '%' end;
+  v_user := case when coalesce(trim(p_user), '') = '' then null else '%' || regexp_replace(trim(p_user), '[%_]', ' ', 'g') || '%' end;
+
+  -- período atual
+  select count(*), coalesce(sum(x.total_cost), 0), coalesce(sum(x.quantity), 0)
+    into v_count, v_cost, v_qty
+  from public.v_losses x
+  where x.store_id = p_store and x.created_at >= p_from and x.created_at < p_to + 1
+    and (p_reason is null or x.loss_reason_id = p_reason)
+    and (p_product is null or x.product_id = p_product)
+    and (v_user is null or x.created_by_name ilike v_user)
+    and (v_like is null or x.product_name ilike v_like or x.internal_code ilike v_like
+         or coalesce(x.lot_code, '') ilike v_like or x.notes ilike v_like or x.reason_name ilike v_like);
+
+  -- motivo que mais perdeu (em R$) no período, com os mesmos filtros
+  select x.reason_name, round(sum(x.total_cost), 2), count(*)
+    into v_top_name, v_top_cost, v_top_count
+  from public.v_losses x
+  where x.store_id = p_store and x.created_at >= p_from and x.created_at < p_to + 1
+    and (p_reason is null or x.loss_reason_id = p_reason)
+    and (p_product is null or x.product_id = p_product)
+    and (v_user is null or x.created_by_name ilike v_user)
+    and (v_like is null or x.product_name ilike v_like or x.internal_code ilike v_like
+         or coalesce(x.lot_code, '') ilike v_like or x.notes ilike v_like or x.reason_name ilike v_like)
+  group by x.reason_name
+  order by sum(x.total_cost) desc, count(*) desc
+  limit 1;
+
+  -- período anterior (mesma duração), para variação
+  select count(*), coalesce(sum(x.total_cost), 0)
+    into v_prev_count, v_prev_cost
+  from public.v_losses x
+  where x.store_id = p_store and x.created_at >= v_prev_from and x.created_at < v_prev_to + 1
+    and (p_reason is null or x.loss_reason_id = p_reason)
+    and (p_product is null or x.product_id = p_product)
+    and (v_user is null or x.created_by_name ilike v_user)
+    and (v_like is null or x.product_name ilike v_like or x.internal_code ilike v_like
+         or coalesce(x.lot_code, '') ilike v_like or x.notes ilike v_like or x.reason_name ilike v_like);
+
+  return jsonb_build_object(
+    'from', p_from, 'to', p_to, 'days', v_days,
+    'count', v_count,
+    'total_cost', round(v_cost, 2),
+    'total_quantity', round(v_qty, 4),
+    'prev_from', v_prev_from, 'prev_to', v_prev_to,
+    'prev_count', v_prev_count,
+    'prev_total_cost', round(v_prev_cost, 2),
+    'top_reason', case when v_top_name is null then null
+                       else jsonb_build_object('name', v_top_name, 'cost', v_top_cost, 'count', v_top_count) end
+  );
+end;
+$fn$;
+
+revoke execute on function public.ops_losses_kpis(uuid, date, date, uuid, uuid, text, text) from public, anon;
+grant execute on function public.ops_losses_kpis(uuid, date, date, uuid, uuid, text, text) to authenticated, service_role;
+
+
+
+-- ===================================================================
+-- migration: 0015_rotinas.sql
+-- ===================================================================
+
+-- =====================================================================
+--  0012 · ROTINAS (temperaturas, checklists, tarefas) — apoio à interface
+--    · v_temperature_equipment_status : cada equipamento da unidade com a
+--      ÚLTIMA medição (temperatura, hora, quem mediu, dentro/fora) e o
+--      status calculado para os cartões da tela /temperaturas:
+--        sem_medicao  → nunca foi medido
+--        fora         → última medição fora da faixa
+--        vencida      → última medição mais antiga que check_interval_min
+--        ok           → dentro da faixa e no prazo
+--      security_invoker: respeita a RLS de temperature_equipment e
+--      temperature_logs (temperaturas.ver). Idempotente.
+-- =====================================================================
+drop view if exists public.v_temperature_equipment_status;
+create view public.v_temperature_equipment_status with (security_invoker = true) as
+select
+  e.id, e.store_id, e.name, e.kind, e.location_text, e.min_temp, e.max_temp, e.check_interval_min, e.active, e.position,
+  e.created_at, e.updated_at,
+  l.id                as last_log_id,
+  l.temperature       as last_temperature,
+  l.in_range          as last_in_range,
+  l.measured_at       as last_measured_at,
+  l.measured_by_name  as last_measured_by_name,
+  l.corrective_action as last_corrective_action,
+  l.notes             as last_notes,
+  case when l.id is null then null
+       else greatest(0, floor(extract(epoch from (now() - l.measured_at)) / 60))::integer end as minutes_since,
+  (l.id is not null and now() - l.measured_at > make_interval(mins => greatest(e.check_interval_min, 1))) as stale,
+  case when l.id is null then 'sem_medicao'
+       when not l.in_range then 'fora'
+       when now() - l.measured_at > make_interval(mins => greatest(e.check_interval_min, 1)) then 'vencida'
+       else 'ok' end as status
+from public.temperature_equipment e
+left join lateral (
+  select t.id, t.temperature, t.in_range, t.measured_at, t.measured_by_name, t.corrective_action, t.notes
+  from public.temperature_logs t
+  where t.equipment_id = e.id
+  order by t.measured_at desc
+  limit 1
+) l on true;
+
+grant select on public.v_temperature_equipment_status to authenticated, service_role;
+revoke all on public.v_temperature_equipment_status from anon;
+
+
+
+-- ===================================================================
+-- migration: 0016_gestao.sql
 -- ===================================================================
 
 -- =====================================================================
@@ -5473,231 +5606,98 @@ grant execute on function public.ops_report_suppliers(uuid, date, date) to authe
 
 
 -- ===================================================================
--- migration: 0012_inventario_perdas.sql
+-- migration: 0017_etiquetas.sql
 -- ===================================================================
 
 -- =====================================================================
---  0012 · INVENTÁRIO / PERDAS — apoio à interface
---    · ops_losses_kpis : indicadores do período da tela /perdas, com os
---      MESMOS filtros da lista (motivo, produto, funcionário, busca):
---      total R$, quantidade, nº de registros, motivo que mais perdeu e o
---      total do período anterior (mesma duração) para comparação.
---      Exige perdas.ver na unidade. Idempotente.
+--  0012 · ETIQUETAS — apoio à interface de impressão e modelos
+--    · ops_label_print(...)                      : registra a etiqueta emitida na tabela
+--        imutável `labels` (a interface nunca escreve nela diretamente). Exige
+--        etiquetas.imprimir na unidade e confere que modelo/lote são da mesma empresa.
+--    · ops_label_template_set_default(p_template): marca o modelo como padrão do seu tipo
+--        e desmarca os demais do mesmo tipo/empresa em uma só transação.
+--        Exige etiquetas.editar_modelos.
+--    · ops_label_templates_seed_defaults(p_company): cria os modelos de fábrica (0008)
+--        quando a empresa ainda não tem nenhum — chamável pela tela Modelos.
+--        Exige etiquetas.editar_modelos.
+--  Idempotente (create or replace). Sem tabelas novas; RLS de 0008 permanece.
 -- =====================================================================
-create or replace function public.ops_losses_kpis(
-  p_store uuid, p_from date, p_to date,
-  p_reason uuid default null, p_product uuid default null, p_user text default '', p_term text default ''
-) returns jsonb language plpgsql stable security definer set search_path = public as $fn$
-declare
-  v_days int; v_prev_from date; v_prev_to date;
-  v_count bigint; v_cost numeric; v_qty numeric; v_prev_cost numeric; v_prev_count bigint;
-  v_top_name text; v_top_cost numeric; v_top_count bigint;
-  v_like text; v_user text;
+
+create or replace function public.ops_label_print(
+  p_store    uuid,
+  p_template uuid,
+  p_product  uuid,
+  p_lot      uuid,
+  p_kind     text,
+  p_copies   integer,
+  p_payload  jsonb default '{}'::jsonb
+) returns uuid language plpgsql security definer set search_path = public as $fn$
+declare v_company uuid; v_id uuid; v_kind text;
 begin
-  perform public.ops_require(p_store, 'perdas.ver');
-  if p_from is null or p_to is null or p_to < p_from then
-    raise exception 'Período inválido.';
-  end if;
-  v_days := (p_to - p_from) + 1;
-  v_prev_to := p_from - 1;
-  v_prev_from := v_prev_to - v_days + 1;
-  v_like := case when coalesce(trim(p_term), '') = '' then null else '%' || regexp_replace(trim(p_term), '[%_]', ' ', 'g') || '%' end;
-  v_user := case when coalesce(trim(p_user), '') = '' then null else '%' || regexp_replace(trim(p_user), '[%_]', ' ', 'g') || '%' end;
-
-  -- período atual
-  select count(*), coalesce(sum(x.total_cost), 0), coalesce(sum(x.quantity), 0)
-    into v_count, v_cost, v_qty
-  from public.v_losses x
-  where x.store_id = p_store and x.created_at >= p_from and x.created_at < p_to + 1
-    and (p_reason is null or x.loss_reason_id = p_reason)
-    and (p_product is null or x.product_id = p_product)
-    and (v_user is null or x.created_by_name ilike v_user)
-    and (v_like is null or x.product_name ilike v_like or x.internal_code ilike v_like
-         or coalesce(x.lot_code, '') ilike v_like or x.notes ilike v_like or x.reason_name ilike v_like);
-
-  -- motivo que mais perdeu (em R$) no período, com os mesmos filtros
-  select x.reason_name, round(sum(x.total_cost), 2), count(*)
-    into v_top_name, v_top_cost, v_top_count
-  from public.v_losses x
-  where x.store_id = p_store and x.created_at >= p_from and x.created_at < p_to + 1
-    and (p_reason is null or x.loss_reason_id = p_reason)
-    and (p_product is null or x.product_id = p_product)
-    and (v_user is null or x.created_by_name ilike v_user)
-    and (v_like is null or x.product_name ilike v_like or x.internal_code ilike v_like
-         or coalesce(x.lot_code, '') ilike v_like or x.notes ilike v_like or x.reason_name ilike v_like)
-  group by x.reason_name
-  order by sum(x.total_cost) desc, count(*) desc
-  limit 1;
-
-  -- período anterior (mesma duração), para variação
-  select count(*), coalesce(sum(x.total_cost), 0)
-    into v_prev_count, v_prev_cost
-  from public.v_losses x
-  where x.store_id = p_store and x.created_at >= v_prev_from and x.created_at < v_prev_to + 1
-    and (p_reason is null or x.loss_reason_id = p_reason)
-    and (p_product is null or x.product_id = p_product)
-    and (v_user is null or x.created_by_name ilike v_user)
-    and (v_like is null or x.product_name ilike v_like or x.internal_code ilike v_like
-         or coalesce(x.lot_code, '') ilike v_like or x.notes ilike v_like or x.reason_name ilike v_like);
-
-  return jsonb_build_object(
-    'from', p_from, 'to', p_to, 'days', v_days,
-    'count', v_count,
-    'total_cost', round(v_cost, 2),
-    'total_quantity', round(v_qty, 4),
-    'prev_from', v_prev_from, 'prev_to', v_prev_to,
-    'prev_count', v_prev_count,
-    'prev_total_cost', round(v_prev_cost, 2),
-    'top_reason', case when v_top_name is null then null
-                       else jsonb_build_object('name', v_top_name, 'cost', v_top_cost, 'count', v_top_count) end
-  );
-end;
-$fn$;
-
-revoke execute on function public.ops_losses_kpis(uuid, date, date, uuid, uuid, text, text) from public, anon;
-grant execute on function public.ops_losses_kpis(uuid, date, date, uuid, uuid, text, text) to authenticated, service_role;
-
-
-
--- ===================================================================
--- migration: 0012_recebimento.sql
--- ===================================================================
-
--- =====================================================================
---  0012 · RECEBIMENTO / COMPRAS / REPOSIÇÃO — apoio à interface
---    · v_replenishment_ranked : v_replenishment + level_rank (ordenação
---      por gravidade do nível no banco, com paginação)
---    · ops_po_create_batch    : cria pedidos de compra (rascunho) em lote,
---      agrupando os itens por fornecedor, em uma única transação
--- =====================================================================
-
--- ---------------------------------------------------------------------
--- Reposição ordenável por nível (0 = crítico … 3 = normal)
--- ---------------------------------------------------------------------
-drop view if exists public.v_replenishment_ranked;
-create view public.v_replenishment_ranked with (security_invoker = true) as
-select v.*,
-       case v.level when 'critico' then 0 when 'baixo' then 1 when 'atencao' then 2 else 3 end as level_rank
-from public.v_replenishment v;
-grant select on public.v_replenishment_ranked to authenticated, service_role;
-
--- ---------------------------------------------------------------------
--- Pedidos de compra em lote a partir da reposição
---   p_items: [{ product_id, supplier_id?, quantity, unit_id?, estimated_price? }]
---   Agrupa por supplier_id (itens sem fornecedor viram um pedido sem fornecedor).
---   Devolve: [{ id, number, supplier_id, supplier_name, items }]
--- ---------------------------------------------------------------------
-create or replace function public.ops_po_create_batch(p_store uuid, p_items jsonb, p_notes text default '')
-returns jsonb language plpgsql security definer set search_path = public as $fn$
-declare
-  v_company uuid; v_sup uuid; v_po uuid; v_num text; v_sup_name text; v_pos int; v_count int;
-  it jsonb; v_qty numeric; v_product uuid; v_result jsonb := '[]'::jsonb;
-begin
-  perform public.ops_require(p_store, 'compras.criar');
-  if p_items is null or jsonb_typeof(p_items) <> 'array' or jsonb_array_length(p_items) = 0 then
-    raise exception 'Selecione pelo menos um produto.';
-  end if;
+  perform public.ops_require(p_store, 'etiquetas.imprimir');
   v_company := public.ops_store_company(p_store);
-
-  for v_sup in
-    select distinct nullif(i->>'supplier_id', '')::uuid from jsonb_array_elements(p_items) i
-  loop
-    if v_sup is not null and not exists (select 1 from public.suppliers where id = v_sup and company_id = v_company) then
-      raise exception 'Fornecedor inválido.';
-    end if;
-
-    insert into public.purchase_orders (company_id, store_id, supplier_id, notes)
-    values (v_company, p_store, v_sup, coalesce(p_notes, ''))
-    returning id, number into v_po, v_num;
-
-    v_pos := 0; v_count := 0;
-    for it in
-      select i from jsonb_array_elements(p_items) i
-      where nullif(i->>'supplier_id', '')::uuid is not distinct from v_sup
-    loop
-      v_product := nullif(it->>'product_id', '')::uuid;
-      v_qty := coalesce(nullif(it->>'quantity', '')::numeric, 0);
-      if v_product is null or v_qty <= 0 then continue; end if;
-      if not exists (select 1 from public.products where id = v_product and company_id = v_company) then
-        raise exception 'Produto inválido no pedido.';
-      end if;
-      insert into public.purchase_order_items (purchase_order_id, product_id, quantity, unit_id, estimated_price, position)
-      values (v_po, v_product, v_qty, nullif(it->>'unit_id', '')::uuid, coalesce(nullif(it->>'estimated_price', '')::numeric, 0), v_pos);
-      v_pos := v_pos + 1; v_count := v_count + 1;
-    end loop;
-
-    if v_count = 0 then
-      delete from public.purchase_orders where id = v_po;
-      continue;
-    end if;
-
-    v_sup_name := null;
-    if v_sup is not null then select name into v_sup_name from public.suppliers where id = v_sup; end if;
-    v_result := v_result || jsonb_build_object('id', v_po, 'number', v_num, 'supplier_id', v_sup, 'supplier_name', coalesce(v_sup_name, ''), 'items', v_count);
-  end loop;
-
-  if jsonb_array_length(v_result) = 0 then
-    raise exception 'Nenhum item válido para gerar pedido (quantidade precisa ser maior que zero).';
+  if v_company is null then raise exception 'Unidade não encontrada.'; end if;
+  if p_copies is null or p_copies < 1 then raise exception 'Informe pelo menos 1 cópia.'; end if;
+  if p_copies > 500 then raise exception 'Máximo de 500 cópias por vez.'; end if;
+  v_kind := coalesce(nullif(trim(p_kind), ''), 'generica');
+  if v_kind not in ('producao','abertura','congelamento','descongelamento','fracionamento','armazenamento','recebimento','generica') then
+    raise exception 'Tipo de etiqueta inválido: %', v_kind;
   end if;
-  return v_result;
+  if p_template is not null and not exists (select 1 from public.label_templates t where t.id = p_template and t.company_id = v_company) then
+    raise exception 'Modelo de etiqueta de outra empresa.';
+  end if;
+  if p_lot is not null and not exists (select 1 from public.stock_lots l where l.id = p_lot and l.company_id = v_company) then
+    raise exception 'Lote de outra empresa.';
+  end if;
+  if p_product is not null and not exists (select 1 from public.products p where p.id = p_product and p.company_id = v_company) then
+    raise exception 'Produto de outra empresa.';
+  end if;
+
+  insert into public.labels (company_id, store_id, template_id, product_id, lot_id, kind, copies, payload)
+  values (v_company, p_store, p_template, p_product, p_lot, v_kind, p_copies, coalesce(p_payload, '{}'::jsonb))
+  returning id into v_id;
+  return v_id;
 end;
 $fn$;
 
-grant execute on function public.ops_po_create_batch(uuid, jsonb, text) to authenticated, service_role;
+create or replace function public.ops_label_template_set_default(p_template uuid)
+returns void language plpgsql security definer set search_path = public as $fn$
+declare v_t record;
+begin
+  select id, company_id, kind into v_t from public.label_templates where id = p_template;
+  if v_t.id is null then raise exception 'Modelo de etiqueta não encontrado.'; end if;
+  perform public.ops_require_company(v_t.company_id, 'etiquetas.editar_modelos');
+  update public.label_templates
+     set is_default = false
+   where company_id = v_t.company_id and kind = v_t.kind and is_default and id <> p_template;
+  update public.label_templates
+     set is_default = true, active = true
+   where id = p_template;
+end;
+$fn$;
+
+create or replace function public.ops_label_templates_seed_defaults(p_company uuid)
+returns integer language plpgsql security definer set search_path = public as $fn$
+declare v_n integer;
+begin
+  perform public.ops_require_company(p_company, 'etiquetas.editar_modelos');
+  perform public.ops_seed_label_templates(p_company);
+  select count(*) into v_n from public.label_templates where company_id = p_company;
+  return v_n;
+end;
+$fn$;
+
+grant execute on function public.ops_label_print(uuid, uuid, uuid, uuid, text, integer, jsonb) to authenticated, service_role;
+grant execute on function public.ops_label_template_set_default(uuid) to authenticated, service_role;
+grant execute on function public.ops_label_templates_seed_defaults(uuid) to authenticated, service_role;
+revoke execute on function public.ops_label_print(uuid, uuid, uuid, uuid, text, integer, jsonb) from anon;
+revoke execute on function public.ops_label_template_set_default(uuid) from anon;
+revoke execute on function public.ops_label_templates_seed_defaults(uuid) from anon;
 
 
 
 -- ===================================================================
--- migration: 0012_rotinas.sql
--- ===================================================================
-
--- =====================================================================
---  0012 · ROTINAS (temperaturas, checklists, tarefas) — apoio à interface
---    · v_temperature_equipment_status : cada equipamento da unidade com a
---      ÚLTIMA medição (temperatura, hora, quem mediu, dentro/fora) e o
---      status calculado para os cartões da tela /temperaturas:
---        sem_medicao  → nunca foi medido
---        fora         → última medição fora da faixa
---        vencida      → última medição mais antiga que check_interval_min
---        ok           → dentro da faixa e no prazo
---      security_invoker: respeita a RLS de temperature_equipment e
---      temperature_logs (temperaturas.ver). Idempotente.
--- =====================================================================
-drop view if exists public.v_temperature_equipment_status;
-create view public.v_temperature_equipment_status with (security_invoker = true) as
-select
-  e.id, e.store_id, e.name, e.kind, e.location_text, e.min_temp, e.max_temp, e.check_interval_min, e.active, e.position,
-  e.created_at, e.updated_at,
-  l.id                as last_log_id,
-  l.temperature       as last_temperature,
-  l.in_range          as last_in_range,
-  l.measured_at       as last_measured_at,
-  l.measured_by_name  as last_measured_by_name,
-  l.corrective_action as last_corrective_action,
-  l.notes             as last_notes,
-  case when l.id is null then null
-       else greatest(0, floor(extract(epoch from (now() - l.measured_at)) / 60))::integer end as minutes_since,
-  (l.id is not null and now() - l.measured_at > make_interval(mins => greatest(e.check_interval_min, 1))) as stale,
-  case when l.id is null then 'sem_medicao'
-       when not l.in_range then 'fora'
-       when now() - l.measured_at > make_interval(mins => greatest(e.check_interval_min, 1)) then 'vencida'
-       else 'ok' end as status
-from public.temperature_equipment e
-left join lateral (
-  select t.id, t.temperature, t.in_range, t.measured_at, t.measured_by_name, t.corrective_action, t.notes
-  from public.temperature_logs t
-  where t.equipment_id = e.id
-  order by t.measured_at desc
-  limit 1
-) l on true;
-
-grant select on public.v_temperature_equipment_status to authenticated, service_role;
-revoke all on public.v_temperature_equipment_status from anon;
-
-
-
--- ===================================================================
--- migration: 0012_usuarios.sql
+-- migration: 0018_usuarios.sql
 -- ===================================================================
 
 -- =====================================================================

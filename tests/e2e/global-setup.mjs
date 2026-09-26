@@ -6,9 +6,19 @@ import { writeFileSync } from "node:fs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
+/** encerra o que estiver escutando na porta (fuser; lsof como reserva) */
+function killPort(port) {
+  for (const cmd of [`fuser -k ${port}/tcp`, `kill $(lsof -t -i:${port})`]) {
+    try {
+      execSync(`${cmd} 2>/dev/null`, { stdio: "ignore", shell: "/bin/bash" });
+      return;
+    } catch { /* nada escutando ou ferramenta ausente: tenta a próxima */ }
+  }
+}
+
 export default async function globalSetup() {
   // derruba gateway antigo (se houver) para poder recriar o banco
-  try { execSync("kill $(lsof -t -i:54321) 2>/dev/null || true", { stdio: "ignore", shell: "/bin/bash" }); } catch { /* nenhum */ }
+  killPort(54321);
   await new Promise((r) => setTimeout(r, 500));
   const reset = spawnSync("bash", ["scripts/db-local.sh"], { cwd: root, stdio: "pipe", encoding: "utf8" });
   if (reset.status !== 0) throw new Error(`não consegui recriar o banco de testes:\n${reset.stderr}`);

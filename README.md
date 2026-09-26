@@ -88,7 +88,9 @@ npm test             # testes de lógica (treinamentos, VILA GPT, utilidades)
 npm run db:bundle    # regenera supabase/install.sql a partir de supabase/migrations
 npm run db:local     # recria o banco local de testes (PostgreSQL) e aplica o install.sql 2×
 npm run test:db      # testes de integração do banco (fluxos + RLS) no PostgreSQL local
-npm run test:all     # tudo
+npm run test:all     # lógica + banco
+npm run e2e          # ponta a ponta no navegador (Playwright + Supabase local sem Docker)
+npm run e2e:prod     # o mesmo contra o build de produção (npm run e2e:build antes)
 ```
 
 Os testes de banco cobrem: bootstrap do primeiro administrador, padrões da
@@ -98,14 +100,16 @@ produção → baixa FEFO → novo lote com validade e custo real, consumo com a
 FEFO e idempotência, perda com custo/motivo/foto, inventário → ajustes,
 transferências, eventos de lote, validade → alerta, estoque mínimo →
 reposição, imutabilidade de movimentos/auditoria, compras → recebimento,
-temperatura → alerta, checklists, tarefas, painel/relatórios e onboarding.
+temperatura → alerta, checklists, tarefas, painel/relatórios, onboarding,
+modelos de etiqueta (padrão por tipo) e guardas de administrador (só admin
+concede o perfil admin; a empresa nunca fica sem admin ativo).
 
 ## Estrutura
 
 ```
 supabase/
   schema.sql              módulo de treinamentos + VILA GPT (original)
-  migrations/0001..0011   sistema de cozinha (fonte da verdade)
+  migrations/0001..0018   sistema de cozinha (fonte da verdade)
   install.sql             arquivo único gerado (colar no Supabase)
 src/
   app/(ops)/              telas do sistema de cozinha

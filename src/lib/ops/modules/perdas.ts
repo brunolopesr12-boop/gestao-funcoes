@@ -14,7 +14,7 @@ import type { Loss, Product, StockLot, StorageType, UUID } from "@/lib/ops/types
 /* ------------------------------------------------------------------ */
 /* Tipos                                                               */
 /* ------------------------------------------------------------------ */
-/** Retorno de ops_losses_kpis (migration 0012_inventario_perdas). */
+/** Retorno de ops_losses_kpis (migration 0014_inventario_perdas). */
 export type LossKpis = {
   from: string; to: string; days: number;
   count: number; total_cost: number; total_quantity: number;

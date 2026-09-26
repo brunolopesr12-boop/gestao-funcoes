@@ -535,3 +535,56 @@ test("onboarding: criar empresa nova torna o criador admin e aplica padrões; ni
   // anon não lê tabelas
   await fails(anon("select count(*) from public.products"), "permission denied");
 });
+
+test("modelos de etiqueta: um padrão por tipo; reposição dos modelos iniciais", async () => {
+  const t1 = (await one(U.admin, "select id from public.label_templates where company_id = $1 and kind = 'producao' and is_default", [VILA])).id;
+  const t2 = (await one(U.admin,
+    "insert into public.label_templates (company_id, name, kind, width_mm, height_mm, active) values ($1, 'Produção 80×50', 'producao', 80, 50, false) returning id",
+    [VILA])).id;
+  await as(U.admin, "select public.ops_label_template_set_default($1)", [t2]);
+  const rows = (await as(U.admin, "select id, is_default, active from public.label_templates where company_id = $1 and kind = 'producao' order by is_default desc", [VILA])).rows;
+  assert.equal(rows.filter((r) => r.is_default).length, 1, "só um padrão por tipo");
+  assert.equal(rows[0].id, t2);
+  assert.equal(rows[0].active, true, "virar padrão reativa o modelo");
+  assert.equal(rows.find((r) => r.id === t1).is_default, false);
+  await fails(as(U.func, "select public.ops_label_template_set_default($1)", [t1]), "Sem permissão");
+  await fails(as(U.admin, "select public.ops_label_template_set_default($1)", ["20000000-0000-4000-8000-000000000099"]), "não encontrado");
+  // reposição: com modelos nada muda; empresa sem modelos recebe os 8 iniciais
+  assert.equal(Number(await val(U.admin, "select public.ops_label_templates_seed_defaults($1)", [VILA])), 9);
+  await as(U.admin, "delete from public.label_templates where company_id = $1", [STRO]);
+  assert.equal(Number(await val(U.admin, "select count(*) from public.label_templates where company_id = $1", [STRO])), 0);
+  assert.equal(Number(await val(U.admin, "select public.ops_label_templates_seed_defaults($1)", [STRO])), 8);
+  await fails(as(U.other, "select public.ops_label_templates_seed_defaults($1)", [VILA]), "Sem permissão");
+});
+
+test("administradores: só admin concede ou mexe no perfil admin; a empresa nunca fica sem admin ativo", async () => {
+  const adminRole = await val(U.admin, "select public.ops_admin_role_id()");
+  // gerente (U.other, com usuarios.gerenciar na Sabor & Cia) não promove ninguém a admin, nem a si mesmo
+  await fails(as(U.other, "insert into public.memberships (company_id, user_id, access_role_id, all_stores) values ($1, $2, $3, true)", [STRO, U.coz, adminRole]), "row-level security");
+  const mine = (await one(U.other, "select id from public.memberships where company_id = $1 and user_id = $2", [STRO, U.other])).id;
+  await fails(as(U.other, "update public.memberships set access_role_id = $2 where id = $1", [mine, adminRole]), "row-level security");
+  // o único admin ativo não pode ser desativado nem excluído
+  const adm = (await one(U.admin, "select id from public.memberships where company_id = $1 and user_id = $2", [STRO, U.admin])).id;
+  await fails(as(U.admin, "update public.memberships set active = false where id = $1", [adm]), "pelo menos um administrador");
+  await fails(as(U.admin, "delete from public.memberships where id = $1", [adm]), "pelo menos um administrador");
+  // admin cria um segundo admin; o gerente não consegue desativar nem excluir esse vínculo (0 linhas, sem erro)
+  const adm2 = (await one(U.admin,
+    "insert into public.memberships (company_id, user_id, access_role_id, all_stores) values ($1, $2, $3, true) returning id",
+    [STRO, U.coz, adminRole])).id;
+  assert.equal(await val(U.coz, "select public.ops_is_admin($1)", [STRO]), true);
+  assert.equal((await as(U.other, "update public.memberships set active = false where id = $1", [adm2])).rowCount, 0);
+  assert.equal((await as(U.other, "delete from public.memberships where id = $1", [adm2])).rowCount, 0);
+  assert.equal(await val(U.coz, "select public.ops_is_admin($1)", [STRO]), true, "vínculo do admin intacto");
+  // com dois admins, um deles pode ser desativado por outro admin
+  assert.equal((await as(U.admin, "update public.memberships set active = false where id = $1", [adm2])).rowCount, 1);
+  assert.equal(await val(U.coz, "select public.ops_is_admin($1)", [STRO]), false);
+  // o gerente segue cuidando dos demais perfis normalmente
+  const func = await val(U.other, "select id from public.access_roles where company_id is null and code = 'funcionario'");
+  await as(U.other, "insert into public.memberships (company_id, user_id, access_role_id, all_stores) values ($1, $2, $3, true)", [STRO, U.func, func]);
+  assert.equal(Number(await val(U.other, "select count(*) from public.memberships where company_id = $1 and user_id = $2", [STRO, U.func])), 1);
+  // nova unidade pela RPC: cria os 4 locais padrão, exige nome e permissão
+  const st = await val(U.admin, "select public.ops_store_create($1, 'Loja 2', 'L2')", [STRO]);
+  assert.equal(Number(await val(U.admin, "select count(*) from public.stock_locations where store_id = $1", [st])), 4);
+  await fails(as(U.admin, "select public.ops_store_create($1, '   ')", [STRO]), "nome");
+  await fails(as(U.func, "select public.ops_store_create($1, 'Loja 3')", [STRO]), "Sem permissão");
+});

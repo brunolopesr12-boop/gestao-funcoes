@@ -19,6 +19,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/estoque", label: "Estoque", icon: "warehouse", perm: "estoque.ver" },
       { href: "/validades", label: "Validades", icon: "clock", perm: "estoque.ver" },
       { href: "/estoque/movimentacoes", label: "Movimentações", icon: "history", perm: "estoque.ver" },
+      { href: "/estoque/lotes", label: "Lotes", icon: "box", perm: "estoque.ver" },
       { href: "/recebimento", label: "Recebimento", icon: "truck", perm: "recebimento.ver" },
       { href: "/producao", label: "Produção", icon: "flame", perm: "producao.ver" },
       { href: "/inventario", label: "Inventário", icon: "clipboard", perms: ["inventario.ver", "inventario.contar"] },

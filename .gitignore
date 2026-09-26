@@ -13,3 +13,7 @@ next-env.d.ts
 .claude/
 .agents/
 .tools
+
+# Playwright
+test-results/
+playwright-report/
