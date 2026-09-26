@@ -246,6 +246,12 @@ test("ficha técnica: custo, rendimento e fator de correção", async () => {
   assert.equal(Number(c.items[0].loss_pct), 36); assert.equal(Number(c.items[0].correction_factor), 1.5625);
   assert.equal(Number(c.gross_total), 5.2); assert.equal(Number(c.yield_factor), Number((3.2 / 5.2).toFixed(4)));
   await fails(as(U.func, "insert into public.recipe_items (recipe_id, ingredient_product_id, gross_quantity, unit_id) values ($1, $2, 1, $3)", [ctx.recipe, ctx.frango, ctx.kg]), "row-level security");
+  // duplicar como nova versão (atômico)
+  const dup = (await one(U.admin, "select public.ops_recipe_duplicate($1) as d", [ctx.recipe])).d;
+  assert.equal(Number(dup.version), 2);
+  assert.equal(Number(await val(U.admin, "select count(*) from public.recipe_items where recipe_id = $1", [dup.id])), 2);
+  await fails(as(U.coz, "select public.ops_recipe_duplicate($1)", [ctx.recipe]), "Sem permissão");
+  await as(U.admin, "update public.recipes set active = false where id = $1", [dup.id]);
 });
 
 test("produção: plano, baixa automática FEFO, novo lote com validade e custo real", async () => {
