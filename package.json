@@ -15,7 +15,9 @@
     "db:bundle": "node scripts/db-bundle.mjs",
     "db:local": "bash scripts/db-local.sh",
     "supabase:local": "node tests/local-supabase/server.mjs",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "e2e:build": "NEXT_PUBLIC_SUPABASE_URL=http://localhost:54321 NEXT_PUBLIC_SUPABASE_ANON_KEY=$(node tests/local-supabase/server.mjs --anon-key) next build",
+    "e2e:prod": "E2E_PROD=1 playwright test"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.127.0",

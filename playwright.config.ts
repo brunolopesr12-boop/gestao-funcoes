@@ -29,7 +29,8 @@ export default defineConfig({
     launchOptions: { executablePath: process.env.PW_CHROMIUM ?? "/opt/pw-browsers/chromium" },
   },
   webServer: {
-    command: `npx next dev -p ${port} 2>&1 | tee .tools/next-dev.log`,
+    // E2E_PROD=1: usa o build de produção (npm run e2e:build antes) — sem recompilação durante os testes
+    command: process.env.E2E_PROD ? `npx next start -p ${port}` : `npx next dev -p ${port} 2>&1 | tee .tools/next-dev.log`,
     url: `http://localhost:${port}/login`,
     timeout: 180_000,
     reuseExistingServer: true,
