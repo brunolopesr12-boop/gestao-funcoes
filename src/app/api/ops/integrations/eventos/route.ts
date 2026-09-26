@@ -21,7 +21,8 @@ const Body = z.object({
  */
 export async function POST(req: NextRequest) {
   const { ctx, denied } = await authenticateApiKey(req, "eventos.enviar");
-  if (denied || !ctx) return denied;
+  if (denied) return denied;
+  if (!ctx) return NextResponse.json({ ok: false, erro: "Não autorizado." }, { status: 401 });
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ ok: false, erro: "Corpo inválido.", detalhes: parsed.error.flatten() }, { status: 400 });
   const b = parsed.data;
@@ -39,7 +40,8 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   const { ctx, denied } = await authenticateApiKey(req, "eventos.ler");
-  if (denied || !ctx) return denied;
+  if (denied) return denied;
+  if (!ctx) return NextResponse.json({ ok: false, erro: "Não autorizado." }, { status: 401 });
   const url = new URL(req.url);
   const status = url.searchParams.get("status") ?? "pendente";
   const { data, error } = await supabaseService()

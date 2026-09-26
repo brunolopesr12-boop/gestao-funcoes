@@ -44,7 +44,8 @@ function opId(seed: string): string {
  */
 export async function POST(req: NextRequest) {
   const { ctx, denied } = await authenticateApiKey(req, "estoque.movimentar");
-  if (denied || !ctx) return denied;
+  if (denied) return denied;
+  if (!ctx) return NextResponse.json({ ok: false, erro: "Não autorizado." }, { status: 401 });
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ ok: false, erro: "Corpo inválido.", detalhes: parsed.error.flatten() }, { status: 400 });
   const body = parsed.data;

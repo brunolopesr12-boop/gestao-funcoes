@@ -11,7 +11,8 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(req: NextRequest) {
   const { ctx, denied } = await authenticateApiKey(req, "estoque.ler");
-  if (denied || !ctx) return denied;
+  if (denied) return denied;
+  if (!ctx) return NextResponse.json({ ok: false, erro: "Não autorizado." }, { status: 401 });
   const url = new URL(req.url);
   const store = url.searchParams.get("store") ?? "";
   if (!store || !(await storeOfCompany(store, ctx.companyId))) {

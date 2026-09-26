@@ -10,7 +10,8 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(req: NextRequest) {
   const { ctx, denied } = await authenticateApiKey(req, "produtos.ler");
-  if (denied || !ctx) return denied;
+  if (denied) return denied;
+  if (!ctx) return NextResponse.json({ ok: false, erro: "Não autorizado." }, { status: 401 });
   const url = new URL(req.url);
   const page = Math.max(0, Number(url.searchParams.get("page") ?? 0) || 0);
   const size = Math.min(500, Math.max(1, Number(url.searchParams.get("size") ?? 200) || 200));
