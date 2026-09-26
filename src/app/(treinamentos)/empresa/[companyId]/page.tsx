@@ -59,7 +59,7 @@ export default function CompanyHub() {
 
   if (!company) {
     return (
-      <AppShell title="Empresa" backHref="/">
+      <AppShell title="Empresa" backHref="/treinamentos">
         <EmptyState emoji="🔍" title="Empresa não encontrada" />
       </AppShell>
     );
@@ -79,7 +79,7 @@ export default function CompanyHub() {
     <AppShell
       title={`${company.emoji} ${company.name}`}
       subtitle={`${ov.roles.length} funções · ${total} funcionários`}
-      backHref="/"
+      backHref="/treinamentos"
     >
       {/* Indicadores ------------------------------------------------ */}
       <div className="mb-4 grid grid-cols-3 gap-2">

@@ -244,7 +244,7 @@ function VilaGpt() {
     <AppShell
       title="VILA GPT"
       subtitle={subtitle}
-      backHref="/"
+      backHref="/treinamentos"
       identity={{
         title: "Quem é você?",
         help: "Seu nome fica registrado junto com as perguntas que você faz ao VILA GPT (e nas etapas de treinamento que marcar).",

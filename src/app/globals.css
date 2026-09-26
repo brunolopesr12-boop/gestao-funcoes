@@ -134,3 +134,47 @@ textarea {
 .safe-bottom {
   padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
 }
+
+/* ---- sistema de cozinha ---------------------------------------- */
+:root {
+  --accent: #f97316;        /* laranja Vila Rica */
+  --accent-2: #fb923c;
+  --ok: #10b981;
+  --warn: #f59e0b;
+  --danger: #f43f5e;
+}
+
+.btn-accent {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* impressão de etiquetas e relatórios: fundo branco, sem interface */
+@media print {
+  html, body {
+    background: #fff !important;
+    color: #000 !important;
+    background-image: none !important;
+  }
+  .print\:hidden { display: none !important; }
+  .print\:p-0 { padding: 0 !important; }
+  .card { border: none !important; background: none !important; }
+}
+
+/* etiqueta em milímetros */
+.label-sheet {
+  position: relative;
+  overflow: hidden;
+  background: #fff;
+  color: #000;
+  font-family: Arial, Helvetica, sans-serif;
+  page-break-after: always;
+  break-after: page;
+}
+.label-sheet:last-child { page-break-after: auto; break-after: auto; }
+.label-field {
+  position: absolute;
+  overflow: hidden;
+  white-space: nowrap;
+  line-height: 1.1;
+}

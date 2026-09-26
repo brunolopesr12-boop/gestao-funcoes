@@ -9,20 +9,38 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "node scripts/fix-test-imports.mjs && node --test tests/*.test.mjs",
-    "pretest": "tsc src/lib/derive.ts src/lib/types.ts src/lib/selectors.ts src/lib/vila-gpt/text.ts src/lib/vila-gpt/knowledge.ts src/lib/vila-gpt/retrieval.ts src/lib/vila-gpt/analytics.ts src/lib/vila-gpt/server/auth.ts --outDir .tmp-test --module esnext --target es2022 --moduleResolution bundler --skipLibCheck --removeComments false"
+    "pretest": "tsc src/lib/derive.ts src/lib/types.ts src/lib/selectors.ts src/lib/vila-gpt/text.ts src/lib/vila-gpt/knowledge.ts src/lib/vila-gpt/retrieval.ts src/lib/vila-gpt/analytics.ts src/lib/vila-gpt/server/auth.ts --outDir .tmp-test --module esnext --target es2022 --moduleResolution bundler --skipLibCheck --removeComments false",
+    "test:db": "node --test tests/db/*.test.mjs",
+    "test:all": "npm test && npm run test:db",
+    "db:bundle": "node scripts/db-bundle.mjs",
+    "db:local": "bash scripts/db-local.sh"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.127.0",
+    "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.58.0",
+    "@tanstack/react-query": "^5.104.0",
+    "@zxing/browser": "^0.2.1",
+    "@zxing/library": "^0.23.0",
+    "exceljs": "^4.4.0",
+    "idb-keyval": "^6.3.0",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
     "next": "^15.5.25",
+    "qrcode": "^1.5.4",
     "react": "19.1.1",
-    "react-dom": "19.1.1"
+    "react-dom": "19.1.1",
+    "recharts": "^3.10.1",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.13",
     "@types/node": "^22.15.3",
+    "@types/pg": "^8.23.1",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.1.13",
     "@types/react-dom": "^19.1.9",
+    "pg": "^8.23.0",
     "tailwindcss": "^4.1.13",
     "typescript": "^5.9.2"
   },

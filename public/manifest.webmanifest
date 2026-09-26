@@ -1,18 +1,20 @@
 {
-  "name": "Gestao de Funcoes e Treinamentos",
-  "short_name": "Funcoes",
+  "name": "Vila Rica · Gestão de Cozinha",
+  "short_name": "Vila Rica",
+  "description": "Estoque, produção, validade, recebimento, inventário, perdas, temperaturas e checklists.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#0b1020",
   "theme_color": "#0b1020",
-  "orientation": "portrait",
+  "orientation": "any",
+  "lang": "pt-BR",
   "shortcuts": [
-    {
-      "name": "VILA GPT",
-      "short_name": "VILA GPT",
-      "url": "/vila-gpt",
-      "description": "Tire duvidas sobre a empresa"
-    }
+    { "name": "Receber", "url": "/recebimento/novo", "description": "Conferir mercadoria" },
+    { "name": "Produzir", "url": "/producao/nova", "description": "Registrar produção" },
+    { "name": "Contar", "url": "/contar", "description": "Contagem rápida" },
+    { "name": "Ler QR", "url": "/qr", "description": "Consultar lote" },
+    { "name": "VILA GPT", "url": "/vila-gpt", "description": "Tire dúvidas sobre a empresa" }
   ],
   "icons": [
     { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }

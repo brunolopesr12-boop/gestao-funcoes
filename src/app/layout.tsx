@@ -1,14 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import { DataProvider } from "@/lib/store";
-import { Gate } from "@/components/Gate";
 
 export const metadata: Metadata = {
-  title: "Gestão de Funções e Treinamentos",
-  description:
-    "Empresas, funções, funcionários, processos e certificação de treinamento.",
-  applicationName: "Gestão de Funções",
-  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Funções" },
+  title: "Vila Rica · Gestão de Cozinha",
+  description: "Estoque, lotes, validade, produção, fichas técnicas, recebimento, compras, inventário, perdas, temperaturas, checklists e treinamentos.",
+  applicationName: "Vila Rica Cozinha",
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Vila Rica" },
   manifest: "/manifest.webmanifest",
 };
 
@@ -19,16 +16,10 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{ children: React.ReactNode }>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="pt-BR">
-      <body>
-        <DataProvider>
-          <Gate>{children}</Gate>
-        </DataProvider>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
