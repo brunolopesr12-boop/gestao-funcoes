@@ -306,7 +306,7 @@ function renderCell(c: ReportColumn, r: Row): React.ReactNode {
     const v = c.value ? c.value(r) : r[c.key];
     return v === null || v === undefined ? "—" : v ? <Badge tone="green">Sim</Badge> : <span className="text-slate-500">Não</span>;
   }
-  if (c.kind === "pct") {
+  if (c.kind === "pct" && c.delta) {
     const v = Number(c.value ? c.value(r) : r[c.key]);
     const txt = cellText(c, r);
     if (!Number.isFinite(v) || txt === "—") return <span className="text-slate-500">—</span>;

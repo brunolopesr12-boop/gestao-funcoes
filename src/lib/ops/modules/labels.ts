@@ -440,14 +440,29 @@ export function useCompanyLogo() {
   });
 }
 
-/** Resumos de vários lotes (ops_lot_summary). null quando o lote não existe/sem acesso. */
+/**
+ * Resumos de vários lotes (ops_lot_summary). null quando o lote não existe ou o usuário
+ * não pode vê-lo (a tela avisa quantos foram ignorados). Se nenhum lote puder ser lido,
+ * o erro do primeiro é lançado para a tela mostrar o motivo.
+ */
 export function useLotSummaries(lotIds: string[]) {
   const key = lotIds.join(",");
   return useQuery({
     queryKey: ["stock_lots", "label_summaries", key],
     enabled: lotIds.length > 0,
     queryFn: async () => {
-      const rows = await Promise.all(lotIds.map((id) => rpc<LabelLotSummary | null>("ops_lot_summary", { p_lot: id })));
+      let firstError: unknown = null;
+      const rows = await Promise.all(
+        lotIds.map(async (id) => {
+          try {
+            return await rpc<LabelLotSummary | null>("ops_lot_summary", { p_lot: id });
+          } catch (e) {
+            firstError = firstError ?? e;
+            return null;
+          }
+        }),
+      );
+      if (firstError && rows.every((r) => r === null)) throw firstError;
       return rows;
     },
   });

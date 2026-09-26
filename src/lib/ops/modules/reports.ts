@@ -41,6 +41,8 @@ export type ReportColumn = {
   /** largura em caracteres (Excel/PDF) */
   width?: number;
   hideOnMobile?: boolean;
+  /** percentual que representa variação (setas ▲/▼ e cor na tela) */
+  delta?: boolean;
 };
 
 export type FilterKey = "period" | "product" | "category" | "supplier" | "user" | "term" | "equipment";
@@ -218,7 +220,14 @@ const estoqueAtual: Report = {
       if (f.category) q = q.eq("category_id", f.category);
       if (f.sel.level) q = q.eq("level", f.sel.level);
       if (f.product) q = q.eq("product_id", f.product.id);
-      if (f.term.trim()) q = q.or(`product_name.ilike.${likeTerm(f.term)},internal_code.ilike.${likeTerm(f.term)},barcode.eq.${f.term.trim()}`);
+      if (f.term.trim()) {
+        const l = likeTerm(f.term);
+        const code = f.term.trim();
+        // código de barras: igualdade exata só quando o termo não quebra a sintaxe do or()
+        const parts = [`product_name.ilike.${l}`, `internal_code.ilike.${l}`];
+        if (/^[\w.-]+$/.test(code)) parts.push(`barcode.eq.${code}`);
+        q = q.or(parts.join(","));
+      }
       return run<ReportRow[]>(q);
     },
   }],
@@ -627,7 +636,7 @@ const custos: Report = {
         { key: "unit", label: "Un.", width: 6 },
         { key: "first_price", label: "Primeiro preço", kind: "money", width: 13 },
         { key: "last_price", label: "Último preço", kind: "money", width: 13 },
-        { key: "variation_pct", label: "Variação", kind: "pct", width: 10 },
+        { key: "variation_pct", label: "Variação", kind: "pct", width: 10, delta: true },
         { key: "min_price", label: "Mínimo", kind: "money", width: 12, hideOnMobile: true },
         { key: "max_price", label: "Máximo", kind: "money", width: 12, hideOnMobile: true },
         { key: "avg_price", label: "Médio", kind: "money", width: 12, hideOnMobile: true },

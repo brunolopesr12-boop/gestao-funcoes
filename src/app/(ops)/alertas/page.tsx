@@ -74,10 +74,14 @@ export default function AlertasPage() {
   }
 
   async function markAllRead() {
-    if (!sid) return;
+    if (!sid || !cid) return;
     try {
       const n = await rpc<number>("ops_alerts_mark_all_read", { p_store: sid });
-      notify(n > 0 ? `${n} alerta(s) marcado(s) como lido(s)` : "Nenhum alerta aberto nesta unidade", n > 0 ? "ok" : "info");
+      // alertas da empresa inteira (store_id nulo) não entram na RPC da unidade: marca um a um (são poucos)
+      const companyOpen = (unwrap(await supabaseBrowser().from("alerts").select("id").is("store_id", null).eq("company_id", cid).eq("status", "aberto").limit(200)) as { id: string }[] | null) ?? [];
+      const marked = await Promise.allSettled(companyOpen.map((a) => rpc("ops_alert_mark", { p_alert: a.id, p_status: "lido" })));
+      const total = (n ?? 0) + marked.filter((r) => r.status === "fulfilled").length;
+      notify(total > 0 ? `${total} alerta(s) marcado(s) como lido(s)` : "Nenhum alerta aberto nesta unidade", total > 0 ? "ok" : "info");
       invalidate("alerts");
     } catch (e) {
       notify(toOpsError(e as Error).message, "erro");

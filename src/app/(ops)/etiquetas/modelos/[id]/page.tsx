@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { useSession } from "@/lib/ops/session";
 import { useInvalidate } from "@/lib/ops/query";
@@ -35,10 +35,13 @@ export default function EditorPage() {
   const [busy, setBusy] = useState(false);
 
   // carrega a cópia local uma vez por modelo (não sobrescreve o que está sendo editado)
+  const loadedId = useRef<string | null>(null);
   useEffect(() => {
-    if (q.data && (!draft || draft.id !== q.data.id)) setDraft(q.data);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q.data?.id]);
+    if (q.data && loadedId.current !== q.data.id) {
+      loadedId.current = q.data.id;
+      setDraft(q.data);
+    }
+  }, [q.data]);
 
   const dirty = useMemo(() => Boolean(draft && q.data && JSON.stringify(draft) !== JSON.stringify(q.data)), [draft, q.data]);
   const sample = useMemo(() => sampleLabelData(company, logo.data ?? ""), [company, logo.data]);

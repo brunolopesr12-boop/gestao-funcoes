@@ -19,7 +19,7 @@ const EMPTY: AuditQueryFilters = { from: todayISO(-29), to: todayISO(), userId: 
 
 /** Trilha de auditoria da empresa (v_audit_logs). */
 export default function AuditoriaPage() {
-  const { company, stores, canCompany, displayName } = useSession();
+  const { company, stores, canCompany } = useSession();
   const notify = useToast();
   const cid = company?.id;
   const [f, setF] = useState<AuditQueryFilters>(EMPTY);
@@ -73,8 +73,7 @@ export default function AuditoriaPage() {
         created_at: fmtDateTime(a.created_at), user_name: a.user_name || "Sistema", action: actionLabel(a.action), entity: entityLabel(a.entity), entity_label: a.entity_label,
         entity_id: a.entity_id ?? "", store_name: a.store_name ?? "Toda a empresa", detail: a.detail, before: a.before ? JSON.stringify(a.before) : "", after: a.after ? JSON.stringify(a.after) : "",
       }));
-      const head = `Auditoria;${company?.name ?? ""};${effective.from} a ${effective.to};gerado por ${displayName} em ${fmtDateTime(new Date().toISOString())}\n`;
-      downloadBlob(`auditoria-${slug(company?.name ?? "empresa")}-${todayISO()}.csv`, head + toCSV(rows, cols).replace(/^﻿/, ""), "text/csv;charset=utf-8");
+      downloadBlob(`auditoria-${slug(company?.name ?? "empresa")}-${effective.from}-a-${effective.to}.csv`, toCSV(rows, cols), "text/csv;charset=utf-8");
       notify(`CSV gerado com ${all.length.toLocaleString("pt-BR")} registro(s)`);
     } catch (e) {
       notify(toOpsError(e as Error).message, "erro");

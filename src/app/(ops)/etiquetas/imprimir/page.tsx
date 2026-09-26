@@ -108,7 +108,9 @@ function ImprimirPage() {
 
   const firstSummary = useMemo(() => summaries.data?.find((s) => s !== null) ?? null, [summaries.data]);
   const effectiveKind: LabelKind = kind ?? (labelRec.data?.kind && isLabelKind(labelRec.data.kind) ? labelRec.data.kind : firstSummary ? kindFromOrigin(firstSummary.lot.origin) : mode === "avulsa" ? "generica" : "producao");
-  const template = useMemo(() => pickTemplate(templates.data ?? [], effectiveKind, templateId), [templates.data, effectiveKind, templateId]);
+  // reimpressão do histórico: sem ?template=, prefere o modelo usado na etiqueta original
+  const preferredTemplateId = templateId ?? labelRec.data?.template_id ?? null;
+  const template = useMemo(() => pickTemplate(templates.data ?? [], effectiveKind, preferredTemplateId), [templates.data, effectiveKind, preferredTemplateId]);
   const locationName = (locations.data ?? []).find((l) => l.id === locationId)?.name ?? "";
   const logoUrl = logo.data ?? "";
 
@@ -249,7 +251,7 @@ function ImprimirPage() {
           <div className="grid gap-4 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
             {/* -------- configuração -------- */}
             <div className="space-y-4">
-              {missing > 0 && <InlineAlert tone="amber">{missing} lote(s) não encontrado(s) ou sem acesso nesta unidade — foram ignorados.</InlineAlert>}
+              {missing > 0 && jobs.length > 0 && <InlineAlert tone="amber">{missing} lote(s) não encontrado(s) ou sem acesso nesta unidade — foram ignorados.</InlineAlert>}
               {lotIds.length > 0 && jobs.length === 0 && (
                 <EmptyState emoji="🔎" title="Lote não encontrado" description="Este lote não existe, foi removido ou pertence a outra unidade." action={<LinkButton href="/etiquetas/imprimir" variant="soft">Escolher outro lote</LinkButton>} />
               )}
